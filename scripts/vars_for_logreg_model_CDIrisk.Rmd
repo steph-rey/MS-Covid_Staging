@@ -1,0 +1,92 @@
+---
+title: "vars_for_logreg_model_CDIrisk"
+author: "Steph Reynolds"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description 
+This file reads in necessary data and identifies variables of interest for building a multivariate logistic regression model to evaluate C diff risk among hospitalized patients. 
+
+# Load packages, import data, and initial cleaning 
+```{r Load packages, message = F}
+# Load required packages 
+library(here)
+library(readr)
+library(tidyverse)
+```
+
+```{r Read in data, message = F}
+med_admin <- read_delim(here("data", "raw", "med admin table 11.08.21.csv"), delim = "|")
+
+dm <- read_delim(here("data", "raw", "demographics and event table 11.08.21.csv"), delim = "|")
+
+lab <- read_delim(here("data", "raw", "lab results 11.08.21.csv"), delim = "|")
+
+dx <- read_delim(here("data", "raw", "covid diagnoses 11.08.21.csv"), delim = "|")
+```
+
+```{r Initial cleaning of datasets}
+
+# Clean `dm` data
+dm <- dm %>% rename(ID = deid_enc_id,
+                    race = pat_race) %>% 
+  select(ID, age, sex, race, ethnicity, language, readmit, ED_dispo, present_source, HAI_type, HAI_pathogen, HAI_first_date, encounter_start_time, admit_time, discharge_time, hospital_LOS)
+
+# Clean `lab` data
+lab <- lab %>% rename(ID = deid_enc_id) %>% 
+  select(ID, lab_concept)
+
+# Clean `dx` data
+dx <- dx %>% rename(ID = deid_enc_id) %>% 
+  select(ID, dx_group, DX_NAME, present_on_admit, severity_of_dx)
+
+# Clean `med_admin` table 
+med_admin <- med_admin %>% rename(ID = deid_enc_id) %>% 
+  select(ID, thera_class, pharm_class, name)
+
+```
+
+# Identify variables of interest in datasets to include in logistic regression model 
+
+*The following are common parameters / risk factors to include in C diff risk assessment model, and where to find them in the datasets:*
+
+* Age>= 65 --> dm$age
+* Prior hospital admission in 30 days --> dm$readmit == "Yes"
+* Admission from ED --> dm$ED_dispo == "Admit" OR dm$present_source == ??
+* Diabetes --> lab$lab_concept == "diabetes" OR dx$dx_group == "DIABETES MELLITUS"
+* Receipt of antibiotics in last 30 days --> med_admin$thera_class %in% c("ANTIBIOTICS", "ANTIFUNGALS", "ANTIINFECTIVES/MISCELLANEOUS", "ANTIPARASITICS", "ANTIVIRALS")
+  + NOTE: Doesn't include outpatient abx, only those during hospitalization
+* Receipt of proton pump inhibitor (PPI) --> med_admin$pharm_class == "PROTON-PUMP INHIBITORS"
+* Receipt of gastric acid suppressants, laxatives, etc. --> med_admin$pharm_class %in% c("ANTACIDS", "LAXATIVES AND CATHARTICS", "LAXATIVES, LOCAL/RECTAL")
+
+#levels(as.factor(med_admin$thera_class))
+
+#med_admin %>% filter(thera_class == "GASTROINTESTINAL") %>% select(pharm_class) %>% unique()
+
+# Notes / Next Steps 
+
+* Create multivariate logistic regression model, divide data into 3 chunks/time periods (e.g. 2019, 2020, 2021)
+  + 1 chunk used to train model, the other 2 used to evaluate model performance (e.g. 2019 chunk used to train model, while 2020-2021 used to test model performance)
+* Evaluate "model creep" or how much the optimized model changes over time? 
+* Question: What proportion of C diff cases occurred 2+ days after admission vs. within 2 days of admission? 
+
+```{r}
+# Add column to `dm` to indicate whether CDIFF dx was within 2 days or > 2 days of admission
+dm <- dm %>% 
+  mutate(HAI_first_date = as.POSIXct(HAI_first_date, format = "%Y-%m-%d %H:%M:%OS3"),
+         admit_time = as.POSIXct(admit_time, format = "%Y-%m-%d %H:%M:%OS3")) %>% 
+  mutate(days_admit_to_dx = difftime(HAI_first_date, admit_time, units = "hours"))
+# need to fix datetime format to include millisecs??? idk how to do this?
+```
+
+

@@ -1,0 +1,81 @@
+---
+title: "Covid Staging Data"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+This file imports `bin_clin_scen_df_11.08.2021.csv` which contains all binary clinical scenarios and O2 devices for all patients, and runs a function to generate WHO Clinical Stages of Severity (4-10).
+
+## SourceData
+  - Binary Clinical Scenarios and O2 Devices (`bin_clin_scen_df_11.08.2021.csv`)
+    + This file contains data on patients' O2 flow rates, clinical scenarios, receipt of O2 devices and their respective category of respiratory support.
+
+# Load required packages 
+```{r Load required packages, message = F}
+library(here)
+library(tidyverse)
+library(tableone)
+```
+
+# Import and preview data 
+```{r Import and preview data}
+bin_clin_scen_df <- read_csv(here("data", "binary_clin_scen_df_11.08.21.csv"))
+
+# Look at structure of df and variable types 
+# str(bin_clin_scen_df)
+head(bin_clin_scen_df, n=40)
+```
+
+# Clean `bin_clin_scen_df` -- add new variable `STAGE` and set values to NA 
+```{r }
+# Create new variable `STAGE` and set values to NA 
+bin_clin_scen_df$STAGE <- NA
+
+```
+
+# Create function to get COVID stages based on patients' binary clinical scenarios and usage of O2 devices (and their respective level of respiratory support)
+```{r Get stages function}
+clin_scen_stg_df <- bin_clin_scen_df %>% 
+  mutate(STAGE = case_when(DEATH==1 ~ 10,
+                           ECMO==1 | 
+                             ((INTUB==1 | IVDEV==1) & SF_LT_200==1 & (VP==1 | CRRT==1)) ~ 9,      # SHOULD I JUST USE 'IVDEV' OR ('INTUB' OR 'IVDEV')???
+                           ((INTUB==1 | IVDEV==1) & SF_LT_200==1) |    # SHOULD I JUST USE 'IVDEV' OR ('INTUB' OR 'IVDEV')???
+                             VP==1 | 
+                             CRRT==1 ~ 8,
+                           (INTUB==1 | IVDEV==1) & 
+                             SF_LT_200==0 ~ 7,
+                          (NIVDEV==1 & CPAPDEV==0) & 
+                            IVDEV==0 & 
+                            ((NIV_per_day > NC_PER_DAY) | NC_GT_12==1 | (NC_PER_DAY>0 & NC_GT_12==1)) ~ 6,
+                          SIMPLEDEV==1 & (LowO2==1 | HighO2 == 1 | SIMPLE_PER_DAY > 1) ~ 5,
+                          NC_PER_DAY>0 & NC_GT_12==0 ~ 5, 
+                          (NIVDEV==0 & CPAPDEV==0 & INTUB==0 & IVDEV==0 & SIMPLEDEV==0) & LowO2==1 ~ 5,
+                          TRUE ~ 4))
+
+```
+
+# Create dataset that only contains demographics, death, and stage
+```{r Filter to create dataset of dm, death, and stage}
+dm_covid_stg <- clin_scen_stg_df %>% 
+  select(-c(VP:NC_GT_12))
+```
+
+# Save and export as .csv files
+```{r Save and export data}
+write_csv(clin_scen_stg_df, here("data", "clin_scen_stg_df_11.08.21.csv"))
+write_csv(dm_covid_stg, here("data", "dm_covid_stg_11.08.21.csv"))
+```
+
+# End of Document
+

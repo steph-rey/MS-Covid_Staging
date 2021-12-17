@@ -1,0 +1,102 @@
+---
+title: "UCSF Stages Data - Prelim Analysis"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE, warning=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+This file imports demographic and staging data and returns a dataset indicating each patient's `max_stage`, `date_adm`, `date_disc`, `los`, `stage_adm`, `stage_disc`, `days_to_disc`. This file prepares the staging data for analysis. 
+
+## Source Data
+  - Demographics and Daily Covid Stage Data (`dm_covid_stg_11.08.2021.csv`)
+    + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
+    + Each row represents one day per patient in hospital. 
+
+# Load required packages
+```{r Load required packages}
+library(here)
+library(tidyverse)
+library(psych)
+library(tableone)
+library(scales)
+```
+
+# Import and preview data 
+```{r Import and preview data, echo=F}
+#df <- read_csv(here("data", "dm_stg_clean_11.08.21.csv"))
+
+df <- read_csv(here("data", "dm_stg_unique_pt_11.08.21.csv"))
+
+glimpse(df)
+
+head(df, n=20)
+
+psych::describe(df, quant = c(.25, .75))
+```
+
+
+
+```{r}
+# Define categorical and continuous variables
+cat_vars <- c("sex", "race", "ethnicity", "smoking", "death", "max_stage", "stage_adm", "stage_disc")
+cont_vars <- c("age", "BMI", "LOS", "stage")
+
+# CreateCatTable from tableone package 
+tableone::CreateCatTable(data=df, cat_vars)
+tableone::CreateContTable(data=df, cont_vars)
+
+# Stage transition matrices
+# Create categorical table of stage_adm vs. stage_disc
+CreateCatTable(strata = 'stage_adm', vars = 'stage_disc', data = df)
+
+# Create categorical table of stage_adm vs. max_stage
+CreateCatTable(strata = 'stage_adm', vars = 'max_stage', data = df)
+
+```
+
+```{r}
+cor.test(x = df$max_stage, y = df$LOS, method = 'pearson')
+```
+
+
+# Create histogram of LOS
+```{r}
+ggplot(df, aes(x = LOS)) +
+  geom_histogram(binwidth = 5) + 
+  labs(title = 'Duration of Stay',
+       subtitle = 'for UCSF Patients',
+       x = 'Number of Days',
+       y = 'Number of Patients') +
+  geom_vline(xintercept = mean(Winsorize(df$LOS)), color = 'red')
+
+install.packages("DescTools")
+library(DescTools)
+
+```
+
+```{r}
+ggplot(df, aes(x = max_stage)) + 
+  geom_bar() + 
+  labs(title = 'Distribution of Max Stages',
+       subtitle = 'at UCSF',
+       x = 'WHO Clinical Progression Stage',
+       y = 'Frequency') + 
+  scale_x_continuous(breaks = 4:10) +
+  geom_text(stat = 'count', aes(label = after_stat(count)), size = 3, vjust = -0.5)
+```
+
+
+```{r}
+
+```
+
