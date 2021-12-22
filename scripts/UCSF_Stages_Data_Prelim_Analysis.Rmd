@@ -20,7 +20,7 @@ This file imports demographic and staging data and returns a dataset indicating 
 ## Source Data
   - Demographics and Daily Covid Stage Data (`dm_covid_stg_11.08.2021.csv`)
     + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
-    + Each row represents one day per patient in hospital. 
+    + Each row represents one day per patient in hospital...
 
 # Load required packages
 ```{r Load required packages}

@@ -27,7 +27,7 @@
 
 #####################################################################################
 
-# Section 1: Load packages and import data ----
+# Load packages and import data ----
 
 # Install comorbidities package
 # install.packages("comorbidity")
@@ -47,14 +47,7 @@ comorbid <- comorbid %>%
 
 #####################################################################################
 
-# Section 2: Run comorbidity() to compute weighted Charlson score and Charlson index ----
-
-# Remove middle "." in  `current_icd10_list` variable 
-# comorbid$current_icd10_list <- gsub("\\.", "", icd_only$current_icd10_list)
-# Don't have to do this, since comorbidity::comorbidity() has an argument called 
-# `tidy.codes` in which all ICD-10 codes are converted to upper
-# case and all non-alphanumeric characters are removed using the expression
-# [^[:alnum:]]. Defaults to TRUE.
+# Run comorbidity() to compute weighted Charlson score and Charlson index ----
 
 # Run comorbidity function to compute weighted Charlson score and weighted Charlson index
 charlson_score <- comorbidity(comorbid, id ="deid_enc_id", code = "current_icd10_list",
@@ -67,5 +60,14 @@ write_csv(charlson_score, here("data", "charlson_wscore_windex.csv"))
 
 # R documentation for comorbidity package can be found here:
 # https://cran.r-project.org/web/packages/comorbidity/comorbidity.pdf
+
+#####################################################################################
+
+# Remove middle "." in  `current_icd10_list` variable 
+# comorbid$current_icd10_list <- gsub("\\.", "", icd_only$current_icd10_list)
+# Don't have to do this, since comorbidity::comorbidity() has an argument called 
+# `tidy.codes` in which all ICD-10 codes are converted to upper
+# case and all non-alphanumeric characters are removed using the expression
+# [^[:alnum:]]. Defaults to TRUE.
 
 #####################################################################################
