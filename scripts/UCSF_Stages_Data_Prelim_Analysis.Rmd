@@ -29,10 +29,11 @@ library(tidyverse)
 library(psych)
 library(tableone)
 library(scales)
+library(DescTools) # Winsorized mean -- Winsorize(mean(df$var))
 ```
 
 # Import and preview data 
-```{r Import and preview data, echo=F}
+```{r Import and preview data, echo=F, warning=F}
 #df <- read_csv(here("data", "dm_stg_clean_11.08.21.csv"))
 
 df <- read_csv(here("data", "dm_stg_unique_pt_11.08.21.csv"))
@@ -44,16 +45,23 @@ head(df, n=20)
 psych::describe(df, quant = c(.25, .75))
 ```
 
-
-
-```{r}
+# Create table one for categorical and continuous variables 
+```{r warning=F}
 # Define categorical and continuous variables
 cat_vars <- c("sex", "race", "ethnicity", "smoking", "death", "max_stage", "stage_adm", "stage_disc")
-cont_vars <- c("age", "BMI", "LOS", "stage")
+cont_vars <- c("age", "BMI", "LOS")
 
-# CreateCatTable from tableone package 
-tableone::CreateCatTable(data=df, cat_vars)
-tableone::CreateContTable(data=df, cont_vars)
+# tableone::print.CreateCatTable 
+t1 <- CreateCatTable(data = df, cat_vars)
+print(t1, varLabels = T, showAllLevels = T, digits = 1)
+# tableone::summary.CreateCatTable
+summary(t1)
+
+# tableone::print.CreateContTable
+t2 <- tableone::CreateContTable(data = df, cont_vars)
+print(t2, nonnormal = "LOS", digits = 1)
+# tableone::summary.CreateContTable
+summary(t2)
 
 # Stage transition matrices
 # Create categorical table of stage_adm vs. stage_disc
@@ -64,26 +72,17 @@ CreateCatTable(strata = 'stage_adm', vars = 'max_stage', data = df)
 
 ```
 
-```{r}
-cor.test(x = df$max_stage, y = df$LOS, method = 'pearson')
-```
-
-
-# Create histogram of LOS
+# Create histogram of LOS 
 ```{r}
 ggplot(df, aes(x = LOS)) +
   geom_histogram(binwidth = 5) + 
-  labs(title = 'Duration of Stay',
+  labs(title = 'Length of Stay',
        subtitle = 'for UCSF Patients',
        x = 'Number of Days',
        y = 'Number of Patients') +
-  geom_vline(xintercept = mean(Winsorize(df$LOS)), color = 'red')
-
-install.packages("DescTools")
-library(DescTools)
-
+  geom_vline(xintercept = median(df$LOS), color = 'red')
 ```
-
+# Create barplot showing dstribution of max stages
 ```{r}
 ggplot(df, aes(x = max_stage)) + 
   geom_bar() + 
@@ -94,9 +93,93 @@ ggplot(df, aes(x = max_stage)) +
   scale_x_continuous(breaks = 4:10) +
   geom_text(stat = 'count', aes(label = after_stat(count)), size = 3, vjust = -0.5)
 ```
-
-
+# Run correlation stats 
 ```{r}
+# max_stage and LOS
+cor.test(x = df$max_stage, y = df$LOS, method = 'pearson')
+
+# max_stage and stage_disc
+cor.test(x = df$max_stage, y = df$stage_disc, method = 'pearson')
+
+# max_stage and stage_adm
+cor.test(x = df$max_stage, y = df$stage_adm, method = 'pearson')
 
 ```
 
+# Create proportional stacked bar chart to show proportion of max_stage within stage_adm
+```{r}
+df %>% 
+  group_by(stage_adm, max_stage) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = as.factor(stage_adm), y = count, fill = as.factor(max_stage))) +
+  geom_col(position = 'fill') +
+  labs(title = 'Distribution of Max Stage by Admission Stage',
+       subtitle = 'at UCSF',
+       x = 'Admission Stage',
+       y = 'Proportion',
+       fill = 'Max Stage') #+
+  #geom_text(aes(label = stat(y), group = stage_adm), stat = 'summary', fun = sum, vjust = -1)
+```
+
+# Create boxplot of LOS grouped by admission stage
+```{r}
+ggplot(df, aes(x = as.factor(stage_adm), y = LOS)) + 
+  geom_boxplot() + 
+  labs(title = 'Length of Stay (LOS) by Admission Stage',
+       x = 'Admission Stage',
+       y = 'Length of Stay')
+```
+# Transform admission stage, discharge stage, and max stage to stage categories where 
+# 4-5 = moderate, 6-9 = severe, and 10 = dead
+```{r}
+# Collapse levels of `stage_disc` to moderate, severe, and dead --> `stgcat_disc`
+df$stgcat_disc <- fct_collapse(as.character(df$stage_disc),
+                           "Moderate" = c("4", "5"),
+                           "Severe" = c("6", "7", "8", "9"),
+                           "Dead" = "10")
+df$stgcat_disc <- factor(df$stgcat_disc, levels=c("Moderate", "Severe", "Dead"))
+levels(df$stgcat_disc)
+
+# Collapse levels of `stage_adm` to moderate, severe, and dead --> `stgcat_adm`
+df$stgcat_adm <- fct_collapse(as.character(df$stage_adm),
+                           "Moderate" = c("4", "5"),
+                           "Severe" = c("6", "7", "8", "9"),
+                           "Dead" = "10")
+df$stgcat_adm <- factor(df$stgcat_adm, levels=c("Moderate", "Severe", "Dead"))
+levels(df$stgcat_adm)
+
+# Collapse levels of `max_stage` to moderate, severe, and dead --> `stgcat_max`
+df$stgcat_max <- fct_collapse(as.character(df$max_stage),
+                           "Moderate" = c("4", "5"),
+                           "Severe" = c("6", "7", "8", "9"),
+                           "Dead" = "10")
+df$stgcat_max <- factor(df$stgcat_max, levels=c("Moderate", "Severe", "Dead"))
+levels(df$stgcat_max)
+
+```
+
+# Re-run the proportional stacked bar chart and boxplot from above using stage
+# categories (moderate, severe, dead)
+```{r}
+# Proportional stacked bar chart showing which proportion of patients admitted at moderate and severe stage reached a peak of moderate and/or severe stage 
+df %>% 
+  group_by(stgcat_adm, stgcat_max) %>% 
+  summarize(count = n()) %>% 
+  ggplot(aes(x = stgcat_adm, y = count, fill = stgcat_max)) +
+  geom_col(position = 'fill') +
+  labs(title = 'Distribution of Max Stage by Admission Stage',
+       subtitle = 'at UCSF',
+       x = 'Admission Stage',
+       y = 'Proportion',
+       fill = 'Max Stage')
+
+# Boxplot showing median LOS by admission stage category (moderate vs. severe)
+ggplot(df, aes(x = stgcat_adm, y = LOS)) + 
+  geom_boxplot() + 
+  labs(title = 'Length of Stay (LOS) by Admission Stage',
+       x = 'Admission Stage',
+       y = 'Length of Stay')
+
+```
+
+# End of Document 
