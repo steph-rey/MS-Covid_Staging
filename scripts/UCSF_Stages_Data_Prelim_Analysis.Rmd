@@ -15,12 +15,12 @@ knitr::opts_chunk$set(echo = TRUE)
 MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
 
 ## Description
-This file imports demographic and staging data and returns a dataset indicating each patient's `max_stage`, `date_adm`, `date_disc`, `los`, `stage_adm`, `stage_disc`, `days_to_disc`. This file prepares the staging data for analysis. 
+This file summarizes the data, creates descriptive tables for the continuous and categorical variables, and generates plots to show the distrbution of length of stay (LOS) by admission stage.
 
 ## Source Data
-  - Demographics and Daily Covid Stage Data (`dm_covid_stg_11.08.2021.csv`)
+  - Demographics and Daily Covid Stage Data (`dm_stg_unique_pt_11.08.2021.csv`)
     + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
-    + Each row represents one day per patient in hospital...
+    + Each row contains a different patient as shown by their unique encounter ID. 
 
 # Load required packages
 ```{r Load required packages}
