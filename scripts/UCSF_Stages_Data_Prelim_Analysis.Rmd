@@ -2,11 +2,11 @@
 title: "UCSF Stages Data - Prelim Analysis"
 author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
 date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
-output: pdf_document
+output: slidy_presentation
 ---
 
-```{r setup, include=FALSE, warning=FALSE, message=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 # Background
@@ -15,7 +15,7 @@ knitr::opts_chunk$set(echo = TRUE)
 MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
 
 ## Description
-This file summarizes the data, creates descriptive tables for the continuous and categorical variables, and generates plots to show the distrbution of length of stay (LOS) by admission stage.
+This file summarizes the data, creates descriptive tables for the continuous and categorical variables, and generates plots to show the distribution of length of stay (LOS) by admission stage.
 
 ## Source Data
   - Demographics and Daily Covid Stage Data (`dm_stg_unique_pt_11.08.2021.csv`)
@@ -23,53 +23,50 @@ This file summarizes the data, creates descriptive tables for the continuous and
     + Each row contains a different patient as shown by their unique encounter ID. 
 
 # Load required packages
-```{r Load required packages}
+```{r Load required packages, include=F}
 library(here)
 library(tidyverse)
-library(psych)
+library(psych)  # describe()
 library(tableone)
 library(scales)
+library(kableExtra)
 library(DescTools) # Winsorized mean -- Winsorize(mean(df$var))
 ```
 
 # Import and preview data 
-```{r Import and preview data, echo=F, warning=F}
+```{r Import and preview data, echo=F}
 #df <- read_csv(here("data", "dm_stg_clean_11.08.21.csv"))
 
 df <- read_csv(here("data", "dm_stg_unique_pt_11.08.21.csv"))
 
-glimpse(df)
+head(df) %>% kbl() %>% kable_material(c("hover", "condensed"))
 
-head(df, n=20)
-
-psych::describe(df, quant = c(.25, .75))
+#describe(df, quant = c(.25, .75)) %>% kbl() %>% kable_material(c("hover", "condensed"))
 ```
 
 # Create table one for categorical and continuous variables 
-```{r warning=F}
+```{r}
 # Define categorical and continuous variables
-cat_vars <- c("sex", "race", "ethnicity", "smoking", "death", "max_stage", "stage_adm", "stage_disc")
+#cat_vars <- c("sex", "race", "ethnicity", "smoking", "death", "max_stage", "stage_adm", "stage_disc")
+cat_vars <- c("sex", "race", "ethnicity", "smoking", "death")
 cont_vars <- c("age", "BMI", "LOS")
 
-# tableone::print.CreateCatTable 
 t1 <- CreateCatTable(data = df, cat_vars)
-print(t1, varLabels = T, showAllLevels = T, digits = 1)
-# tableone::summary.CreateCatTable
-summary(t1)
+#print(t1, varLabels = T, showAllLevels = T, digits = 1)
+kableone(t1)
 
-# tableone::print.CreateContTable
 t2 <- tableone::CreateContTable(data = df, cont_vars)
-print(t2, nonnormal = "LOS", digits = 1)
-# tableone::summary.CreateContTable
-summary(t2)
+#print(t2, nonnormal = "LOS", digits = 1)
+kableone(t2)
+```
 
 # Stage transition matrices
+```{r}
 # Create categorical table of stage_adm vs. stage_disc
-CreateCatTable(strata = 'stage_adm', vars = 'stage_disc', data = df)
+CreateCatTable(strata = 'stage_adm', vars = 'stage_disc', data = df) %>% kableone()
 
 # Create categorical table of stage_adm vs. max_stage
-CreateCatTable(strata = 'stage_adm', vars = 'max_stage', data = df)
-
+CreateCatTable(strata = 'stage_adm', vars = 'max_stage', data = df) %>% kableone()
 ```
 
 # Create histogram of LOS 
@@ -82,7 +79,8 @@ ggplot(df, aes(x = LOS)) +
        y = 'Number of Patients') +
   geom_vline(xintercept = median(df$LOS), color = 'red')
 ```
-# Create barplot showing dstribution of max stages
+
+# Create barplot showing distribution of max stages
 ```{r}
 ggplot(df, aes(x = max_stage)) + 
   geom_bar() + 
@@ -129,8 +127,7 @@ ggplot(df, aes(x = as.factor(stage_adm), y = LOS)) +
        x = 'Admission Stage',
        y = 'Length of Stay')
 ```
-# Transform admission stage, discharge stage, and max stage to stage categories where 
-# 4-5 = moderate, 6-9 = severe, and 10 = dead
+# Transform admission, discharge, and max stage variables to stage categories where 4-5=moderate, 6-9=severe, and 10=dead
 ```{r}
 # Collapse levels of `stage_disc` to moderate, severe, and dead --> `stgcat_disc`
 df$stgcat_disc <- fct_collapse(as.character(df$stage_disc),
@@ -158,8 +155,7 @@ levels(df$stgcat_max)
 
 ```
 
-# Re-run the proportional stacked bar chart and boxplot from above using stage
-# categories (moderate, severe, dead)
+# Re-run the proportional stacked bar chart and boxplot from above using stage categories (moderate, severe, dead)
 ```{r}
 # Proportional stacked bar chart showing which proportion of patients admitted at moderate and severe stage reached a peak of moderate and/or severe stage 
 df %>% 
