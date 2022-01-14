@@ -8,7 +8,7 @@ library(tidyverse)
 library(msm)
 
 # Import data
-df <- read_csv("/Users/stephanie.reynolds/Downloads/dm_stg_clean_11.08.21.csv")
+df <- read_csv("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_clean_11.08.21.csv")
 
 # Transform stages to stage categories where:
 # stages 4-5 = 1 (moderate)
@@ -42,8 +42,8 @@ statetable.msm(state = stagecat, subject = ID, data = markov)
 # 0 = forbidden transitions
 qmat0 <- matrix(c(1,1,1,1,
                   1,1,1,1,
-                  0,0,0,1,
-                  0,0,0,0),
+                  0,0,1,0,
+                  0,0,0,1),
                 nrow = 4, ncol = 4,
                 byrow=TRUE,
                 dimnames=list(from=1:4, to=1:4))
