@@ -2,7 +2,10 @@
 title: "UCSF Stages Data - Prelim Analysis"
 author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
 date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
-output: slidy_presentation
+output:
+  html_document:
+    toc: true
+    number_sections: true
 ---
 
 ```{r setup, include=FALSE}
@@ -31,6 +34,9 @@ library(tableone)
 library(scales)
 library(kableExtra)
 library(DescTools) # Winsorized mean -- Winsorize(mean(df$var))
+library(DataExplorer) # generates data exploratory analysis report
+library(SmartEDA) # performs initial EDA and describes the structure and relationships of all variables
+library(dlookr) # provides data diagnosis, data exploration, and transformation of variables
 ```
 
 # Import and preview data 
@@ -42,6 +48,41 @@ df <- read_csv(here("data", "dm_stg_unique_pt_11.08.21.csv"))
 head(df) %>% kbl() %>% kable_material(c("hover", "condensed"))
 
 #describe(df, quant = c(.25, .75)) %>% kbl() %>% kable_material(c("hover", "condensed"))
+```
+
+# Exploratory data analysis with DataExplorer package
+```{r EDA with DataExplorer}
+library(DataExplorer)
+library(sm)
+
+create_report(data = df, 
+              output_file = "Demographics_and_Daily_Covid_Stage_Data_Profile_Report",
+              output_dir = "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/reports/",
+              report_title = "EDA Report for Demographics and Daily Covid Stage Data - Sys.time()",
+             # y = 
+)
+
+```
+
+# Correlation matrix with PP Score package 
+```{r Correlation matrix with ppssr}
+df %>% select(-c(ID, zip)) %>% visualize_pps(y = 'LOS', do_parallel= TRUE)
+```
+
+# Exploratory data analysis with SmartEDA package
+```{r EDA with SmartEDA}
+library(SmartEDA)
+
+# Create EDA report in HTML format 
+ExpReport(data = df,
+          op_file = "EDA Report for Demographics and Daily Covid Stage Data (SmartEDA)",
+          op_dir = "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/reports/")
+```
+
+# Exploratory data analysis with dlookr package
+```{r EDA with dlookr}
+library(dlookr)
+diagnose_paged_report(df, output_file = "pdf", create_date = format(Sys.time(), '%b %d, %Y  %H:%M %p'), subtitle = "Demographics and Daily Covid Stage Data", author = "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)", abstract = "This report was created for an overview quality diagnosis of demographics and daily Covid staging data. It was created for the purpose of judging the validity of variables before conducting EDA.", flag_content_zero = FALSE, flag_content_minus = FALSE)
 ```
 
 # Create table one for categorical and continuous variables 
