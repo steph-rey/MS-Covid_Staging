@@ -18,12 +18,11 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
 
 ## Description
-This file cleans the demographics and daily covid staging data (`dm_stg_clean_11.08.2021.csv`).
+This file cleans the demographics and daily Covid staging data (`dm_covid_stg_11.08.21.csv`) and prepares for analysis (e.g., create new variables and transform variables to proper data type). The resulting dataframe (`df`) is then de-duplicated to create another dataset where each row represents a unique patient (`one_row_per_pt`).
 
 ## Source Data
-  - Demographics and Daily Covid Stage Data (`dm_stg_unique_pt_11.08.2021.csv`)
-    + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
-    + Each row contains a different patient as shown by their unique encounter ID. 
+  - Demographics and Daily Covid Stage Data (`dm_covid_stg_11.08.21.csv`)
+    + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19). Needs to be cleaned and pre-processed before preliminary analysis.
 
 # Load required packages
 ```{r Load required packages, include=F}
