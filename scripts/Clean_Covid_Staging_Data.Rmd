@@ -39,31 +39,31 @@ head(df, n=10)
 
 # Create new variables
 
-  * max_stage --> max stage that patient experienced during hospital stay 
-  * date_adm --> date that patient was admitted
-  * date_disc --> date that patient was discharged
-  * death --> binary indicator of whether patient died in hospital 
-  * DOD --> date of death 
-  * LOS --> length of stay in hospitals (in days)
-  * stage_adm --> stage at which patient in admitted
-  * stage_disc --> stage at which patient is discharged
-  * days_to_disc --> number of days until pt is discharged 
-  * severe-> binary indicator of where stage is severe (stages 6-9)
+  * `max_stage` --> max stage that patient experienced during hospital stay 
+  * `date_adm` --> date that patient was admitted
+  * `date_disc` --> date that patient was discharged
+  * `death` --> binary indicator of whether patient died in hospital 
+  * `DOD` --> date of death 
+  * `LOS` --> length of stay in hospitals (in days)
+  * `stage_adm` --> stage at which patient in admitted
+  * `stage_disc` --> stage at which patient is discharged
+  * `days_to_disc` --> number of days until pt is discharged 
+  * `severe` --> binary indicator of where stage is severe (stages 6-9)
 ```{r Create new variables}
 df <- df %>% 
-  rename(stage = STAGE) %>% 
+  rename(stage = STAGE,
+         death = end_in_death,
+         DOD = death_date) %>% 
   group_by(ID) %>% 
   mutate(max_stage = max(stage),
          date_adm = min(date),
          date_disc = max(date),
-         death = ifelse(DEATH==1, 1, 0),
-         DOD = date[DEATH==1],
          LOS = round(difftime(date_disc, date_adm, units = 'days'), 1),
          stage_adm = stage[date == date_adm],
          stage_disc = stage[date == date_disc],
          days_to_disc = round(difftime(date_disc, date, units = 'days'), 1),
          severe = ifelse(stage >= 6, 1, 0)) %>% 
-  select(-c(end_in_death, death_date, DEATH))
+  select(-DEATH)
 ```
 
 # Transform variables to proper data type
@@ -77,21 +77,35 @@ df <- df %>%
          race = as.factor(race),
          ethnicity = as.factor(ethnicity),
          smoking = as.factor(smoking),
+         death = as.factor(death),
          LOS = as.integer(LOS),
          stage = as.factor(stage), 
          max_stage = as.factor(max_stage),
-         death = as.factor(death),
          stage_adm = as.factor(stage_adm),
          stage_disc = as.factor(stage_disc),
          days_to_disc = as.integer(days_to_disc),
          severe = as.factor(severe))
 ```
 
-# Preview final dataset and save as csv file 
+# Preview final `df` dataset and save as csv file 
 ```{r Save dataframe as csv file}
 head(df, n=10)
 
 write_csv(df, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_clean_11.08.21.csv")
+```
+
+# Create dataset with one unique patient per row (remove duplicates from `df`)
+```{r}
+one_row_per_pt <- df %>% 
+  distinct(ID, .keep_all = TRUE) %>% 
+  select(-c(date, stage, days_to_disc, severe))
+```
+
+# Preview `one_row_per_pt` dataset and save as csv file
+```{r}
+head(one_row_per_pt, n=10)
+
+write_csv(one_row_per_pt, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_unique_pt_11.08.21.csv")
 ```
 
 # End of Document 
