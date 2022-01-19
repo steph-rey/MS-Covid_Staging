@@ -1,0 +1,97 @@
+---
+title: "Clean Covid Staging Data"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+This file cleans the demographics and daily covid staging data (`dm_stg_clean_11.08.2021.csv`).
+
+## Source Data
+  - Demographics and Daily Covid Stage Data (`dm_stg_unique_pt_11.08.2021.csv`)
+    + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
+    + Each row contains a different patient as shown by their unique encounter ID. 
+
+# Load required packages
+```{r Load required packages, include=F}
+library(tidyverse)
+```
+
+# Import and preview data 
+```{r Import and preview data}
+df <- read_csv("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_covid_stg_11.08.21.csv")
+
+head(df, n=10)
+```
+
+# Create new variables
+
+  * max_stage --> max stage that patient experienced during hospital stay 
+  * date_adm --> date that patient was admitted
+  * date_disc --> date that patient was discharged
+  * death --> binary indicator of whether patient died in hospital 
+  * DOD --> date of death 
+  * LOS --> length of stay in hospitals (in days)
+  * stage_adm --> stage at which patient in admitted
+  * stage_disc --> stage at which patient is discharged
+  * days_to_disc --> number of days until pt is discharged 
+  * severe-> binary indicator of where stage is severe (stages 6-9)
+```{r Create new variables}
+df <- df %>% 
+  rename(stage = STAGE) %>% 
+  group_by(ID) %>% 
+  mutate(max_stage = max(stage),
+         date_adm = min(date),
+         date_disc = max(date),
+         death = ifelse(DEATH==1, 1, 0),
+         DOD = date[DEATH==1],
+         LOS = round(difftime(date_disc, date_adm, units = 'days'), 1),
+         stage_adm = stage[date == date_adm],
+         stage_disc = stage[date == date_disc],
+         days_to_disc = round(difftime(date_disc, date, units = 'days'), 1),
+         severe = ifelse(stage >= 6, 1, 0)) %>% 
+  select(-c(end_in_death, death_date, DEATH))
+```
+
+# Transform variables to proper data type
+```{r Transform variables to proper data type}
+# Transform variables to integer or factor type
+
+# CREATE FUNCTION TO TRANSFORM ALL VARS TO FACTOR TYPE! THIS WILL SAVE TIME IN FUTURE.
+df <- df %>% 
+  mutate(age = as.integer(age),
+         sex = as.factor(sex),
+         race = as.factor(race),
+         ethnicity = as.factor(ethnicity),
+         smoking = as.factor(smoking),
+         LOS = as.integer(LOS),
+         stage = as.factor(stage), 
+         max_stage = as.factor(max_stage),
+         death = as.factor(death),
+         stage_adm = as.factor(stage_adm),
+         stage_disc = as.factor(stage_disc),
+         days_to_disc = as.integer(days_to_disc),
+         severe = as.factor(severe))
+```
+
+# Preview final dataset and save as csv file 
+```{r Save dataframe as csv file}
+head(df, n=10)
+
+write_csv(df, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_clean_11.08.21.csv")
+```
+
+# End of Document 
