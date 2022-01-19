@@ -18,7 +18,7 @@ MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and
 This file imports demographic and staging data and returns a dataset indicating each patient's `max_stage`, `date_adm`, `date_disc`, `los`, `stage_adm`, `stage_disc`, `days_to_disc`. This file prepares the staging data for analysis. 
 
 ## Source Data
-  - Demographics and Daily Covid Stage Data (`dm_covid_stg_11.08.2021.csv`)
+  - Demographics and Daily Covid Stage Data (`dm_stg_clean_11.08.21.csv`)
     + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
     + Each row represents one day per patient in hospital. 
 
@@ -86,6 +86,7 @@ bin_clin_scen_df <- bin_clin_scen_df %>%
    bind_rows(bin_clin_scen_df, .) %>% 
    arrange(ID)
 ```
+
 
 ```{r}
 
