@@ -1,0 +1,61 @@
+---
+title: "EDA with dlookr - Covid Staging Data"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+This file performs exploratory data analysis (EDA) with the dlookr package on the demographics and daily covid stage dataset.
+
+## Source Data
+  - Demographics and Daily Covid Stage Data (`dm_stg_unique_pt_11.08.21.csv`)
+    + This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
+
+# Load required packages
+```{r Load required packages, include=F}
+library(tidyverse)
+library(dlookr)
+```
+
+# Import and preview data 
+```{r Import and preview data}
+# Read in data
+df <- read_csv("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_unique_pt_11.08.21.csv")
+
+# Assign list of variables to be converted to factor type 
+vars_fct <- c("sex", "race", "ethnicity", "smoking", "death", "max_stage", "stage_adm", "stage_disc")
+
+# Convert these variables to factor type
+df <- df %>% 
+  mutate_at(vars_fct, factor)
+
+# Preview first 10 lines of data 
+head(df, n=10)
+```
+
+# Exploratory data analysis with dlookr package
+```{r EDA with dlookr}
+diagnose_paged_report(df,
+                      output_file = "EDA Report for Demographics and Daily Covid Stage Data (dlookr)",
+                      output_dir = "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/reports/",
+                      flag_content_zero = FALSE, 
+                      flag_content_minus = FALSE, 
+                      subtitle = "Demographics and Daily Covid Stage Data",
+                      author = "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)",
+                      abstract = "This report was created for an overview quality diagnosis of demographics and daily Covid staging data. It was created for the purpose of judging the validity of variables before conducting EDA.")
+```
+
+# End of Document 
