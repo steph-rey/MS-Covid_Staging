@@ -21,19 +21,40 @@ df <- df %>%
 
 # Create dataset with only relevant parameters and assign to `regdf`
 regdf <- df %>% 
-  select(-c(ID, zip, DOD, date_adm, date_disc, stage_disc))
+  select(-c(ID, zip, DOD, date_adm, date_disc, stage_disc))# %>% 
+  mutate(stage_adm_cat = ifelse(stage_adm %in% 4:5, "Moderate", "Severe"))
 
+# Create new dataset that excludes LOS outliers and re-fit linear regression model ----
+  # Identify outliers using boxplot method; save to vector
+  outliers <- boxplot(regdf$LOS)$out
+  
+  # Exclude outliers from dataset
+  regdf_wo_outliers <- regdf[-which(regdf$LOS %in% outliers), ]
+  hist(log(regdf_wo_outliers$LOS))
+  
+  # Fit model and assign to `m2` 
+  m2 <- linear_reg() %>% 
+    set_engine("lm") %>% 
+    fit(LOS ~ stage_adm + age + race, data = regdf_wo_outliers)
+  
+  print(m2)
+  
+  # Check model performance
+  model_performance(m2)
+  
+  # Check model assumptions
+  check_model(m2)
+  
 # Exploratory data analysis (EDA) with dlookr ---- 
 dlookr::diagnose_web_report(regdf)
 
 # Fit the model and assign to `m1` ----
 m1 <- linear_reg() %>% 
   set_engine("lm") %>% 
-  fit(LOS ~ max_stage + age + race + BMI, data = regdf)
-
+  fit(LOS ~ stage_adm_cat + age + race, data = regdf)
+  # Need help with testing interactions in diff models and comparing their performance ^^
+  
 m1
-
-# Need help with testing interactions in diff models and comparing their performance 
 
 # Check model assumptions ----
 check_model(m1)
