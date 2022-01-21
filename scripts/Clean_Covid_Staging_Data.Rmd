@@ -91,8 +91,10 @@ df <- df %>%
 # Preview dataset
 head(df, n=10)
 
-# Save as csv
+# Save as csv and RDS
 write_csv(df, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_clean_11.08.21.csv")
+saveRDS(df, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_clean_11.08.21.rds")
+
 ```
 
 # Create dataset with one unique patient per row (remove duplicates from `df`)
@@ -107,8 +109,10 @@ one_row_per_pt <- df %>%
 # Preview dataset
 head(one_row_per_pt, n=10)
 
-# Save as csv
+# Save as csv and RDS
 write_csv(one_row_per_pt, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_unique_pt_11.08.21.csv")
+saveRDS(one_row_per_pt, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_unique_pt_11.08.21.rds")
+
 ```
 
 # End of Document 
