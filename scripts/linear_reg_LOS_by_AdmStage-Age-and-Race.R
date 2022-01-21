@@ -21,7 +21,7 @@ df <- df %>%
 
 # Create dataset with only relevant parameters and assign to `regdf`
 regdf <- df %>% 
-  select(-c(ID, zip, DOD, date_adm, date_disc, stage_disc))# %>% 
+  select(-c(ID, zip, DOD, date_adm, date_disc, stage_disc)) %>% 
   mutate(stage_adm_cat = ifelse(stage_adm %in% 4:5, "Moderate", "Severe"))
 
 # Create new dataset that excludes LOS outliers and re-fit linear regression model ----
@@ -51,7 +51,7 @@ dlookr::diagnose_web_report(regdf)
 # Fit the model and assign to `m1` ----
 m1 <- linear_reg() %>% 
   set_engine("lm") %>% 
-  fit(LOS ~ stage_adm_cat + age + race, data = regdf)
+  fit(LOS ~ stage_adm + poly(age, 2) + race, data = regdf)
   # Need help with testing interactions in diff models and comparing their performance ^^
   
 m1
@@ -65,10 +65,21 @@ model_performance(m1)
 # Fit the model using transformed outcome (log of LOS) and assign to `m3` ----
 m3 <- linear_reg() %>% 
   set_engine("lm") %>% 
-  fit(log(LOS) ~ stage_adm_cat + age + race, data = regdf)
+  fit(sqrt(LOS) ~ stage_adm_cat + age + race, data = regdf)
 
 m3
 
+#######
+# Create dummy cols
+x1 <- as.matrix(tx1 <- regdf %>% dummy_cols(select_columns = "race") %>% dummy_cols(select_columns = "stage_adm_cat") %>% 
+  select(-c(sex, race, ethnicity, smoking, BMI, death, LOS, stage_adm, max_stage, stage_adm_cat)) )
+#sum(!complete.cases(t1))
+y1 <- matrix(regdf$LOS, ncol =1)
+
+(p1 <- polspline::polymars(y1, x1)
+)
+
+names(tx1)
 # Check model assumptions ----
 check_model(m3)
 
