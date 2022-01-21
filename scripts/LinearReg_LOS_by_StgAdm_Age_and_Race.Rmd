@@ -27,6 +27,15 @@ This file imports `dm_stg_unique_pt_11.08.21.csv` and generates a linear regress
   * `race` -> Race category (Black, White, Asian, Haw/PI, Other, Unknown)
     **Still unsure how to treat `race`**
 
+## Important Notes 
+
+  * Decided a-priori that we would include stage of admission, age, and race.
+  * Used fastDummies::dummy_cols to create dummy columns for race and age, then use polspline::polymars(y,x) to identify which parameters were most important. Confirmed that we should include admission stage, age, and race as predictors. It also showed us that we need to include age as a non-linear in our model - relationship changed as age increased linearly. 
+  * Included age as a polynomial to 2nd degree in regression formula. Tried out poly(age, 3) and poly(age, 4) too, but resulting p-values were less significant. 
+  * Try different transformations of outcome (LOS): Log, square root, cubic root.
+  * Applied mgcv::gam with spline or smooth function (s(age)), which confirmed that we should use age as polynomial.
+  * As of now, undecided on how to treat or parameterize race. Regression results show significance for Race-Other category, and we are not sure why this could be. 
+
 # Load required packages
 ```{r Load required packages, include=F}
 library(tidyverse)
