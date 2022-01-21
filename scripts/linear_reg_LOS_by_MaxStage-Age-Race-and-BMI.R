@@ -62,6 +62,19 @@ check_model(m1)
 # Check model performance ---- 
 model_performance(m1)
 
+# Fit the model using transformed outcome (log of LOS) and assign to `m3` ----
+m3 <- linear_reg() %>% 
+  set_engine("lm") %>% 
+  fit(log(LOS) ~ stage_adm_cat + age + race, data = regdf)
+
+m3
+
+# Check model assumptions ----
+check_model(m3)
+
+# Check model performance ---- 
+model_performance(m1)
+
 # Calculate and visualize feature importance using vip package ----
   # Visualize most important features 
   m1 %>% 
