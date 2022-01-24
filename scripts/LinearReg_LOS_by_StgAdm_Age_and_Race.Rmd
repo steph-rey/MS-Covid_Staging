@@ -70,6 +70,7 @@ regdf <- df %>%
 # Create dataset that excludes LOS outliers
 **ASK TRAVIS WHETHER TO RUN REGRESSIONS WITH FULL DATASET OR WITHOUT LOS OUTLIERS**
 **CAN DELETE THIS SECTION IF NOT USING DATASET WITHOUT OUTLIERS** 
+**CAN ALSO USE MASS::RLM() FIT LINEAR MODEL BY ROBUST REGRESSION USING M ESTIMATOR**
 ```{r Create dataset that excludes LOS outliers, eval = FALSE}
 # Identify outliers using boxplot method; save to vector
 outliers <- boxplot(regdf$LOS)$out
