@@ -84,6 +84,10 @@ df <- df %>%
          stage_disc = as.factor(stage_disc),
          days_to_disc = as.integer(days_to_disc),
          severe = as.factor(severe))
+
+# Collapse Asian and Native Hawaiian levels for `race` 
+df$race <- fct_collapse(df$race, 
+                        "Asian" = c("Asian", "Native Hawaiian or Other Pacific Islander"))
 ```
 
 # Preview final `df` dataset and save as csv file and Rdata 
