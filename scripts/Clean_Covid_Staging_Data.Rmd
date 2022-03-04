@@ -86,9 +86,10 @@ df <- df %>%
          severe = as.factor(severe))
 
 # Collapse Asian and Native Hawaiian levels for `race` 
-df$race <- fct_collapse(df$race, 
+df$race <- fct_collapse(df$race,
                         "Asian" = c("Asian", "Native Hawaiian or Other Pacific Islander"),
                         "White" = "White or Caucasian")
+                        "Asian" = c("Asian", "Native Hawaiian or Other Pacific Islander"))
 ```
 
 # Preview final `df` dataset and save as csv file and Rdata 
