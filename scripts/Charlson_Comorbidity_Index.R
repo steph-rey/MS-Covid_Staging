@@ -2,10 +2,11 @@
 # @Project - MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
 # @Author - Steph Reynolds (Stephanie.Reynolds@ucsf.edu)
 # @DateCreated - 2021-11-19
-# @DateModified - 2021-11-19 at 5:07PM
+# @DateModified - 2021-04-20 at 4:00PM
 # @Description - This file uses the comorbidity package to compute the (weighted)
-# Charlson score and (weighted) Charlson index for each patient. 
-# @SourceData - `covid diagnoses 11.08.21.csv` 
+# Charlson score and (weighted) Charlson index for each patient. It also calculates
+# the (weighted) Elixhauser score.
+# @SourceData - `all encounter diagnoses 4.14.22.csv` 
 # @Input Variables - 
     # @deid_enc_id: Deidentified encounter ID (unique patient identifier)
     # @current_icd10_list: ICD-10 code that classifies dx, sx, and procedures
@@ -18,7 +19,7 @@
 
 # Background ----
 
-# Comorbidities (`covid diagnoses 11.08.2021.csv`)
+# Comorbidities (`all encounter diagnoses 4.14.22.csv`)
 
 # This file contains data on patients' comorbid diagnoses (inc. ICD-10 codes, 
 # severity of DX, DX group) and whether they were present on admission.
@@ -33,28 +34,43 @@
 # install.packages("comorbidity")
 
 # Load required packages 
-library(here)
 library(tidyverse)
 library(comorbidity)
 
 # Read in data
-comorbid <- read_delim(here("data", "raw", "covid diagnoses 11.08.21.csv"))
+dx <- read_delim(here("data", "raw", "all encounter diagnoses 4.14.22.csv"), delim = "|")
 
 # Filter where `present_on_admit` == "Yes" or "NULL" and select only ID and ICD code columns
-comorbid <- comorbid %>% 
+comorbid <- dx %>% 
   filter(present_on_admit %in% c("Yes", "NULL")) %>% 
   select(deid_enc_id, current_icd10_list)
+
+cat("Number of unique encounters:", n_distinct(comorbid$deid_enc_id))
 
 #####################################################################################
 
 # Run comorbidity() to compute weighted Charlson score and Charlson index ----
 
 # Run comorbidity function to compute weighted Charlson score and weighted Charlson index
-charlson_score <- comorbidity(comorbid, id ="deid_enc_id", code = "current_icd10_list",
+CCI <- comorbidity(comorbid, id ="deid_enc_id", code = "current_icd10_list",
                        score = "charlson", assign0 = T, icd = "icd10")
 
-# Save `charlson_score' as .csv file 
-write_csv(charlson_score, here("data", "charlson_wscore_windex.csv"))
+# Save `CCI' as CSV and RDS
+write_csv(CCI, here("data", "CCI.csv"))
+saveRDS(CCI, here("data", "CCI.rds"))
+
+#####################################################################################
+
+# Run comorbidity() to compute Elixhauser score ----
+  # Same as above, but set score = "elixhauser"
+
+# Run comorbidity function to compute Elixhauser score 
+elixhauser <- comorbidity(comorbid, id ="deid_enc_id", code = "current_icd10_list",
+                   score = "elixhauser", assign0 = T, icd = "icd10")
+
+# Save `elixhauser' as CSV and RDS
+write_csv(elixhauser, here("data", "elixhauser.csv"))
+saveRDS(elixhauser, here("data", "elixhauser.rds"))
 
 #####################################################################################
 
