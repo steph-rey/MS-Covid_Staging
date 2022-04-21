@@ -1,0 +1,79 @@
+---
+title: "Generate Ordinal Stages of Severity"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+This file imports `bin_clin_scen_df_4.14.22.rds` which contains all binary clinical scenarios and O2 devices for all patients, and runs a function to generate WHO Clinical Stages of Severity (4-10).
+
+## Source Data
+  - Binary Clinical Scenarios and O2 Devices (`bin_clin_scen_df_4.14.22.rds`)
+    + This file contains data on patients' demographics, O2 flow rates, clinical scenarios, receipt of O2 devices and their respective category of respiratory support.
+
+# Load required packages 
+```{r Load required packages, message = F}
+library(here)
+library(tidyverse)
+```
+
+# Import and preview data 
+```{r Import and preview data}
+bin_clin_scen_df <- readRDS(here("data", "binary_clin_scen_df_4.14.22.rds"))
+
+# Preview data and variable types
+head(bin_clin_scen_df)
+glimpse(bin_clin_scen_df)
+```
+
+# Create function to get COVID stages based on patients' binary clinical scenarios and usage of O2 devices (and their respiratory support category)
+```{r Get stages function}
+clin_scen_stg_df <- bin_clin_scen_df %>% 
+  mutate(stage = case_when(death==1 ~ 10,
+                           ECMO==1  ~ 9,
+                           SF_LT_200==1 & (INTUB==1 | IVDEV==1) & (VP==1 | CRRT==1) ~ 9, 
+                           VP==1 | CRRT==1 ~ 8,
+                           SF_LT_200==1 & (INTUB==1 | IVDEV==1) ~ 8,
+                           SF_LT_200==0 & (INTUB==1 | IVDEV==1) ~ 7,
+                           (NIVDEV==1 & CPAPDEV==0) & IVDEV==0 & 
+                              ((NIV_PER_DAY > NC_PER_DAY) | (NC_PER_DAY>0 & NC_GT_12==1)) ~ 6,
+                           NC_PER_DAY>0 & NC_GT_12==1 ~ 6,
+                           SIMPLEDEV==1 & (LowO2==1 | HighO2==1 | SIMPLE_PER_DAY>1) ~ 5,
+                           NC_PER_DAY>0 & NC_GT_12==0 ~ 5,
+                           LowO2==1 & SIMPLEDEV==0 & NIVDEV==0 & IVDEV==0 & CPAPDEV==0 & NCDEV==0 & 
+                              INTUB==0 ~ 5,
+                           TRUE ~ 4))
+```
+
+# Simplify dataset to only include demographics, death, and stage
+```{r Filter to create dataset of demographics, death, and stage}
+colnames(clin_scen_stg_df)
+
+dm_covid_stg <- clin_scen_stg_df %>% 
+  select(-c(end_in_death, death_date:NC_GT_12))
+
+dm_covid_stg
+```
+
+# Save and export as CSV and RDS 
+```{r Save and export data}
+write_csv(clin_scen_stg_df, here("data", "clin_scen_stg_df_4.14.22.csv"))
+saveRDS(clin_scen_stg_df, here("data", "clin_scen_stg_df_4.14.22.rds"))
+
+write_csv(dm_covid_stg, here("data", "dm_covid_stg_4.14.22.csv"))
+saveRDS(dm_covid_stg, here("data", "dm_covid_stg_4.14.22.rds"))
+```
+

@@ -1,0 +1,139 @@
+---
+title: "Post-Process and De-duplicate Covid Staging Data"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Background
+
+## Project
+
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+
+This file reads in the demographic and daily Covid staging data (`dm_covid_stg_4.14.22.rds`) and creates new variables (e.g., max stage, admission/discharge date, severity at admission/discharge, LOS, death). The expanded dataframe (`df_full`) is then de-duplicated to create another dataset where each row represents a unique encounter ID (`df_unique`).
+
+## Source Data
+
+-   Demographics and Daily Covid Stage Data (`dm_covid_stg_4.14.22.rds`)
+    -   This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19). Needs to be post-processed and de-duplicated before preliminary analysis.
+
+# Load required packages
+
+```{r Load required packages, include=F}
+library(tidyverse)
+```
+
+# Import and preview data
+
+```{r Import and preview data}
+df <- readRDS("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_covid_stg_4.14.22.rds")
+
+head(df, n=10)
+glimpse(df)
+```
+
+# Create new variables
+
+-   `max_stage`: Maximum stage experienced by patient
+-   `date_adm`: Date of admission
+-   `date_disc`: Date of discharge
+-   `LOS`: Length of stay in hospital (in days)
+-   `stage_adm`: Severity stage at admission
+-   `stage_disc`: Severity stage at discharge
+-   `days_to_disc`: Number of days until patient is discharged
+-   `severe`: Binary indicator of whether stage is severe (stage \>5)
+-   `death`: Binary indicator of whether patient died in hospital
+
+```{r Create new variables}
+df_full <- df %>%  
+  group_by(ID) %>% 
+  mutate(date_adm = min(date),
+         date_disc = max(date),
+         LOS = as.numeric(date_disc - date_adm + 1),
+         stage_adm = factor(stage[date == date_adm], ordered = T, levels = c("4", "5", "6", "7", "8", "9")),
+         stage_disc = factor(stage[date == date_disc], ordered = T, levels = c("4", "5", "6", "7", "8", "9", "10")),
+         max_stage = factor(max(stage), ordered = T, levels = c("4", "5", "6", "7", "8", "9", "10")),
+         days_to_disc = as.numeric(date_disc - date),
+         severe = ifelse(stage >= 6, 1, 0),
+         death = factor(ifelse(sum(death) > 0, "Yes", "No"))) %>% 
+  ungroup()
+
+df_full
+
+# Identified an anomaly (one patient with LOS=1 and stage_adm=10), so need to remove from dataset
+df_full <- df_full %>% filter(ID != "7FA71E63-485E-487B-9789-65A4C6CB7467")
+```
+
+# Preview `df_full` and save as CSV and RDS
+
+```{r Preview df_full and save as CSV and RDS}
+# Preview dataset
+head(df_full, n=10)
+
+# Save as CSV and RDS
+write_csv(df_full, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_full_FINAL_4.14.22.csv")
+saveRDS(df_full, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_full_FINAL_4.14.22.rds")
+```
+
+# Create dataset with one row per unique encounter ID
+
+```{r Create dataset with one row per unique encounter}
+df_unique <- df_full %>%
+  distinct(ID, .keep_all = TRUE) %>% 
+  select(-c(date, stage, days_to_disc, severe))
+```
+
+# Categorize admission, discharge, and max stage variables
+
+Stages categorized into: Moderate (4-5), Severe (6-9), and Dead (10)
+
+```{r Categorize admission, discharge, and max stage variables}
+# Discharge stage 
+df_unique$stage_disc.cat <- fct_collapse(as.character(df_unique$stage_disc),
+                           "Moderate" = c("4", "5"),
+                           "Severe" = c("6", "7", "8", "9"),
+                           "Dead" = "10")
+df_unique$stage_disc.cat <- factor(df_unique$stage_disc.cat, 
+                                 ordered = TRUE, 
+                                 levels = c("Moderate", "Severe", "Dead"))
+
+# Admission stage 
+df_unique$stage_adm.cat <- fct_collapse(as.character(df_unique$stage_adm),
+                           "Moderate" = c("4", "5"),
+                           "Severe" = c("6", "7", "8", "9"),
+                           "Dead" = "10")
+df_unique$stage_adm.cat <- factor(df_unique$stage_adm.cat, 
+                                ordered = TRUE, 
+                                levels = c("Moderate", "Severe", "Dead"))
+
+# Max stage 
+df_unique$max_stage.cat <- fct_collapse(as.character(df_unique$max_stage),
+                           "Moderate" = c("4", "5"),
+                           "Severe" = c("6", "7", "8", "9"),
+                           "Dead" = "10")
+df_unique$max_stage.cat <- factor(df_unique$max_stage.cat,
+                                  ordered = TRUE, 
+                                  levels = c("Moderate", "Severe", "Dead"))
+```
+
+# Preview `df_unique` and save as CSV and RDS
+
+```{r Preview df_unique and save as CSV and RDS}
+# Preview dataset
+head(df_unique, n=10)
+glimpse(df_unique)
+
+# Save as CSV and RDS
+write_csv(df_unique, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_unique_FINAL_4.14.22.csv")
+saveRDS(df_unique, "/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_unique_FINAL_4.14.22.rds")
+```

@@ -1,0 +1,61 @@
+---
+title: "Descriptive Analysis for Covid Staging Data"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+# Background
+
+## Project
+
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+
+This file summarizes demographic and staging data for COVID-19 patients, creates a table of frequency counts, and generates various plots.
+
+## Source Data
+
+-   Demographics and Covid Staging Data (`covid_dm_stages_unique_FINAL_4.14.22.rds`)
+    -   This file contains data on patient demographics and COVID stage (based on WHO Clinical Progression Scale, which aims to capture patient clinical trajectory and resource usage over the course of the clinical illness -- in this case, COVID-19).
+    -   Each row represents a unique encounter.
+
+# Load required packages and read in data
+
+```{r Load required packages, include=F}
+library(tidyverse)
+```
+
+# Read in data and preview
+
+```{r Read in data and preview}
+df <- readRDS("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_unique_FINAL_4.14.22.rds")
+
+df
+```
+
+# Summarize data and create Table One
+
+```{r Summarize data and create Table One}
+psych::describe(df)
+
+vars <- colnames(df)[2:17]
+
+t1 <- CreateTableOne(data=df, vars=vars)
+print(t1, showAllLevels = T)
+```
+
+# Build plots
+
+```{r}
+
+```
+

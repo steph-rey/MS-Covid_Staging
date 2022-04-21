@@ -1,0 +1,430 @@
+---
+title: "Binary Clinical Scenarios and O2 Device Classifications"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE, warning=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Background
+
+## Project
+
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+
+This file imports flowsheet vitals and med admin data and returns a dataset containing all binary clinical scenarios and O2 device usage per patient-day. The resulting dataset will then be converted to ordinal stages of severity, based on WHO Clinical Progression Scale.
+
+## Source Data
+
+-   **Flowsheet Vitals and O2 Device Data** (`flowsheet data table 4.14.22.csv`)
+    -   This file contains data on SpO2, FiO2, O2 flow rate, O2 device, ventilation modes and settings, dialysis settings, ECMO settings, etc.
+-   **Medical Administration Record** (`med admin table 4.14.22`)
+    -   This file contains data on vasopressor (VP) name, VP rate, and VP action.
+-   ***Cleaned*** **Demographics and Event Table** (`dm_covid_4.14.22.csv`)
+    -   This file contains data on patient demographics, admit date, death date (if applicable), length of stay (LOS), last code status, and COVID-19 vaccination status.
+    -   Cleaned dataset obtained from previous script `Clean_and_Patient-Days_Tbl`.
+
+# Load required packages
+
+```{r Load required packages, message = F}
+library(here)
+library(tidyverse)
+```
+
+# Import data
+
+```{r Import all data, echo=F, message=F}
+med <- read_delim(here("data", "raw", "med admin table 4.14.22.csv"))
+fs <- read_delim(here("data", "raw", "flowsheet data table 4.14.22.csv"))
+dm_covid <- readRDS(here("data", "dm_covid_4.14.22.rds"))
+```
+
+# Clean `dm_covid` table (reformat and select necessary variables)
+
+```{r Clean demographics table}
+glimpse(dm_covid)
+
+dm <- dm_covid %>%
+  select(-c(deid_pat_id, admit_date, discharge_date)) %>% 
+  rename(ID = deid_enc_id,
+         date = day_date)
+```
+
+# Clean `med` table (reformat and select necessary variables)
+
+```{r Clean med adm table, warning = F}
+glimpse(med)
+
+med <- med %>%
+  rename(ID = deid_enc_id) %>%  
+  mutate(date = as.Date(taken_time, format = "%Y-%m-%d"),
+         infusion_rate = as.numeric(infusion_rate)) %>% 
+  select(ID, taken_time, date, vasopressor_flag, infusion_rate, COVID_tx_flag) 
+
+# Only include encounter IDs that are included in `dm` table 
+med <- med[med$ID %in% dm$ID, ]
+```
+
+# Clean `fs` table (reformat and select necessary variables)
+
+```{r Clean flowsheet table, warning=F}
+glimpse(fs)
+
+# Create not-in operator
+`%nin%` <- Negate(`%in%`)
+
+fs <- fs %>% 
+  rename(ID = deid_enc_id) %>% 
+  filter(!is.na(meas_value) & clinical_concept %nin% c("Respirations", "Urine_output", "Blood_pressure", "Pulse", "Temperature")) %>%
+  mutate(date = as.Date(recorded_time, format = "%Y-%m-%d"), 
+         meas_val_chr = meas_value,                 # create new var `meas_val_chr` to keep meas_value as character type
+         meas_val_num = as.numeric(meas_value)) %>%   
+  select(ID, flo_meas_name, meas_val_num, meas_val_chr, recorded_time, date, clinical_concept)
+
+# Only include encounter IDs that are included in `dm` table 
+fs <- fs[fs$ID %in% dm$ID, ]
+
+# Check to make sure number of unique encounter IDs in all 3 datasets are equal
+  n_distinct(fs$ID)
+  n_distinct(dm$ID)
+  n_distinct(med$ID)
+  # Each dataset has n=813 unique encounter IDs
+```
+
+# Create table to indicate whether each patient received vasopressor each day
+
+-   Create new variable `vp_yn` to indicate whether patient received VP at timestamp
+
+    -   If `vasopressor_flag`=Yes & `infusion_rate`\>0, then `vp_yn`=1
+
+-   Group by ID and date, then create variable `VP` to indicate whether pt received VP at any timestamp during day (take max value of `vp_yn`)
+
+-   Remove duplicate rows
+
+```{r Vasopressor}
+vp.tab <- med %>% 
+  mutate(vp_yn = ifelse((vasopressor_flag == "Yes" & infusion_rate > 0), 1, 0)) %>%
+  group_by(ID, date) %>%
+  mutate(VP = max(vp_yn, na.rm = T)) %>%
+  distinct(ID, date, VP)
+```
+
+# Create table to indicate whether each patient received ECMO each day
+
+-   Create new variable `ecmo_yn` to indicate whether patient received ECMO at timestamp
+
+    -   If `clinical_concept`='ECMO_settings', then `ecmo_yn`=1
+
+-   Group by ID and date, then create variable `ECMO` to indicate whether pt received ECMO at any timestamp during day (take max value of `ecmo_yn`)
+
+-   Remove duplicate rows
+
+```{r ECMO}
+ecmo.tab <- fs %>% 
+  mutate(ecmo_yn = ifelse(clinical_concept == "ECMO_settings", 1, 0)) %>%
+  group_by(ID, date) %>%
+  mutate(ECMO = max(ecmo_yn, na.rm = T)) %>%
+  distinct(ID, date, ECMO)
+```
+
+# Create table to indicate whether patient received CRRT each day
+
+-   Create new variable `crrt_yn` to indicate whether patient received CRRT at timestamp
+
+    -   If `clinical_concept`="HD_UF_CRRT_settings" & `flo_meas_name` %in% c("R UFR TRANSCRIBED CRRT IP_CD_UCSF", "R CRRT BLOOD FLOW RATE"), then `crrt_yn`=1
+
+-   Group by ID and date, then create variable `CRRT` to indicate whether pt received CRRT at any timestamp during day (take max value of `crrt_yn`)
+
+-   Remove duplicate rows
+
+```{r CRRT}
+crrt.tab <- fs %>% 
+  mutate(crrt_yn = ifelse((clinical_concept == "HD_UF_CRRT_settings" &
+                              flo_meas_name %in% c("R UFR TRANSCRIBED CRRT IP_CD_UCSF", "R CRRT BLOOD FLOW RATE")), 1, 0)) %>%  
+  group_by(ID, date) %>% 
+  mutate(CRRT = max(crrt_yn, na.rm = T)) %>%
+  distinct(ID, date, CRRT)
+```
+
+# Create table to indicate whether patient received support from NIV device each day
+
+-   Create new variable `niv_yn` to indicate whether patient received support from an NIV device at timestamp
+
+    -   If `clinical_concept`="NIV_settings", then `niv_yn`=1
+
+-   Group by ID and date, then create variable `NIV_PER_DAY` to indicate number of times that an NIV device was recorded during day
+
+-   Remove duplicate rows
+
+```{r NIV settings}
+niv.tab <- fs %>% 
+  mutate(niv_yn = ifelse(clinical_concept == "NIV_settings", 1, 0)) %>% 
+  group_by(ID, date) %>% 
+  mutate(NIV = max(niv_yn),
+         NIV_PER_DAY = sum(clinical_concept == "NIV_settings")) %>% 
+  distinct(ID, date, NIV, NIV_PER_DAY)
+```
+
+# Create table to indicate whether patient received HD each day
+
+-   Create new variable `hd_yn` to indicate whether patient received support from an HD device or HD settings at timestamp
+
+    -   If `clinical_concept`="HD_UF_CRRT_settings" & `flo_meas_name` %in% c("R HD BLOOD FLOW RATE", "R HD ULTRAFILTRATION RATE"), then `hd_yn`=1
+
+-   Group by ID and date, then create variable `HD` to indicate whether pt received HD support at any timestamp during day (take max value of `hd_yn`)
+
+-   Remove duplicate rows
+
+```{r HD settings}
+hd.tab <- fs %>% 
+  mutate(hd_yn = ifelse((clinical_concept == "HD_UF_CRRT_settings" & 
+                           flo_meas_name %in% c("R HD BLOOD FLOW RATE", "R HD ULTRAFILTRATION RATE")), 1, 0)) %>%
+  group_by(ID, date) %>% 
+  mutate(HD = max(hd_yn, na.rm = T)) %>% 
+  distinct(ID, date, HD)
+```
+
+# Create table to indicate whether patient was intubated each day
+
+-   Create new variable `intub_yn` to indicate whether patient was intubated at timestamp
+
+    -   If `clinical_concept`="Intubation_settings" , then `intub_yn`=1
+
+-   Group by ID and date, then create variable `INTUB` to indicate whether pt was intubated at any timestamp during day (take max value of `intub_yn`)
+
+-   Remove duplicate rows
+
+```{r Intubation}
+intub.tab <- fs %>% 
+  mutate(intub_yn = ifelse(clinical_concept == "Intubation_settings", 1, 0)) %>% 
+  group_by(ID, date) %>% 
+  mutate(INTUB = max(intub_yn, na.rm = T)) %>% 
+  distinct(ID, date, INTUB)
+```
+
+# Filter data for SpO2 and FiO2 and merge tables to calculate SF
+
+-   Filter data for SpO2 and FiO2
+
+-   Merge tables and calculate the pulse oximetric saturation SpO2/FiO2 (SF) ratio, a non-invasive surrogate measure for PF ratio
+
+    -   `SF` = (SpO2/FiO2) \* 100
+
+```{r SpO2, FiO2, SF tables}
+# Filter data for SpO2 values and assign to table `spo2.tab`
+spo2.tab <- fs %>% 
+  filter(clinical_concept == "SpO2") %>% 
+  select(ID, recorded_time, date, meas_val_num)
+
+# Filter data for FiO2 values and assign to table `fio2.tab`
+fio2.tab <- fs %>% 
+  filter(flo_meas_name == "R FIO2") %>% 
+  select(ID, recorded_time, date, meas_val_num)
+
+# Merge SpO2 and FiO2 tables and calculate SF 
+SF.tab <- fio2.tab %>% 
+  left_join(spo2.tab, by = c("ID", "recorded_time"), suffix = c(".fi", ".sp")) %>% 
+  mutate(SF = (meas_val_num.sp / meas_val_num.fi * 100)) %>% 
+  select(ID, recorded_time, date.fi, SF) %>% 
+  rename(date = date.fi)
+```
+
+# Create table to indicate whether patient experienced SpO2/FiO2\<200 at same timestamp, and assign to new variable `SF_LT_200`
+
+-   Using `SF.tab` created above, filter for patients that have a SF ratio of less than 200
+
+-   Create new variable `sf_lt_200_yn` to indicate whether patient had SF ratio \< 200 at timestamp
+
+-   Group by ID and date, then create variable `SF_LT_200` to indicate whether pt was intubated at any timestamp during day (take max value of `sf_lt_200_yn`)
+
+-   Remove duplicate rows
+
+```{r SpO2/FiO2 < 200, warning = F}
+SF200.tab <- SF.tab %>% 
+  mutate(sf_lt_200_yn = case_when(SF < 200 ~ 1,
+                                  is.na(SF) ~ 0,
+                                  TRUE ~ 0)) %>% 
+  group_by(ID, date) %>% 
+  mutate(SF_LT_200 = max(sf_lt_200_yn, na.rm = T)) %>% 
+  distinct(ID, date, SF_LT_200)
+```
+
+# Assign all O2 devices to respiratory support categories
+
+Read in `o2_dev_names.csv` which lists all O2 devices and their respective O2 support category. Categories include:
+
+-   NONE: `dev_cat`="no_dev"
+
+-   SIMPLE: `dev_cat`="simple_dev"
+
+-   NIV: `dev_cat`="NIV_dev"
+
+-   IV: `dev_cat`="iv_dev"
+
+-   CPAP: `dev_cat`="cpap_dev"
+
+-   NC (Nasal cannula and high-flow nasal cannula): `nc_dev`=1
+
+```{r Read in `o2_dev_names.csv` and filter by respiratory support category}
+# Read in `o2_dev_names.csv` 
+o2_dev_names <- read_csv(here("data", "o2_dev_names.csv"))
+
+# NONE
+no_dev_names <- filter(o2_dev_names, dev_cat == "no_dev")[[1]]
+
+# SIMPLE
+simple_dev_names <- filter(o2_dev_names, dev_cat == "simple_dev")[[1]]
+
+# Non-Invasive Ventilation (NIV) 
+niv_dev_names <- filter(o2_dev_names, dev_cat == "NIV_dev")[[1]]
+
+# Invasive (IV)
+iv_dev_names <- filter(o2_dev_names, dev_cat == "iv_dev")[[1]]
+
+# CPAP
+cpap_dev_names <- filter(o2_dev_names, dev_cat == "cpap_dev")[[1]]
+
+# Nasal cannula or high-flow nasal cannula (HFNC)
+nc_dev_names <- filter(o2_dev_names, nc_dev == 1)[[1]]
+```
+
+# Create table of O2 devices categorized by respiratory support type to indicate whether patient received respiratory support, and if yes, which type
+
+Each column represents a respiratory support category (as coded in previous step): `NONE`, `SIMPLE`, `NIV`, `IV`, `CPAP`, and `NC`. You can think of these as different types of O2 devices, varying in severity.
+
+```{r O2 device classification table}
+device.tab <- fs %>%
+  filter(clinical_concept == "O2_device") %>%
+  mutate(NOdev_yn = ifelse(meas_val_chr %in% no_dev_names, 1, 0),
+         SIMPLEdev_yn = ifelse(meas_val_chr %in% simple_dev_names, 1, 0),
+         NIVdev_yn = ifelse(meas_val_chr %in% niv_dev_names, 1, 0),
+         IVdev_yn = ifelse(meas_val_chr %in% iv_dev_names, 1, 0),
+         CPAPdev_yn = ifelse(meas_val_chr %in% cpap_dev_names, 1, 0),
+         NCdev_yn = ifelse(meas_val_chr %in% nc_dev_names, 1, 0)) %>% 
+  group_by(ID, date) %>% 
+  mutate(NODEV = max(NOdev_yn, na.rm = T),
+         SIMPLEDEV = max(SIMPLEdev_yn, na.rm = T),
+         SIMPLE_PER_DAY = sum(meas_val_chr %in% simple_dev_names),
+         NIVDEV = max(NIVdev_yn, na.rm = T),
+         IVDEV = max(IVdev_yn, na.rm = T),
+         CPAPDEV = max(CPAPdev_yn, na.rm = T),
+         NCDEV = max(NCdev_yn, na.rm = T),
+         NC_PER_DAY = sum(meas_val_chr %in% nc_dev_names)) %>% 
+  distinct(ID, date, NODEV, SIMPLEDEV, SIMPLE_PER_DAY, NIVDEV, IVDEV, CPAPDEV, NCDEV, NC_PER_DAY)
+```
+
+# Create table to indicate whether patients received any O2, low O2, or high O2
+
+-   Categorize O2 usage into any, low, and high:
+
+    -   **O2:** If `meas_val_num`\>0, then `O2`=1
+
+    -   **LowO2:** If `meas_val_num`\>0 & `meas_val_num`\<=12, then `LowO2`=1
+
+    -   **HighO2:** If `meas_val_num`\>12, then `HighO2`=1
+
+```{r Low vs. high O2 flow rate table}
+# Create vector for O2 flow rate names
+O2_names <- c("R OXYGEN FLOW RATE", "R OXYGEN FLOW RATE 2 IP_CD_UCSF")
+
+# Create table with columns 'O2', 'LowO2', and 'HighO2'
+O2.tab <- fs %>% 
+  mutate(O2 = ifelse(flo_meas_name %in% O2_names & meas_val_num > 0, 1, 0),
+         LowO2 = ifelse(flo_meas_name %in% O2_names & meas_val_num > 0 & meas_val_num <= 12, 1, 0),
+         HighO2 = ifelse(flo_meas_name %in% O2_names & meas_val_num > 12, 1, 0)) %>% 
+  group_by(ID, date) %>% 
+  mutate(O2 = max(O2, na.rm = T),
+         LowO2 = max(LowO2, na.rm = T), 
+         HighO2 = max(HighO2, na.rm = T)) %>% 
+  distinct(ID, date, O2, LowO2, HighO2)
+```
+
+# Merge `device.tab` and `O2.tab` to create table to indicate whether patient received support from NC and high O2
+
+-   Merge `device.tab` and `O2.tab` to create `O2_DEV.tab`
+
+-   Create variable `NC_GT_12` to indicate whether patient received support from nasal cannula device AND had high O2 flow rate
+
+    -   If `NCDEV`=1 & `HighO2`=1, then `NC_GT_12`=1
+
+```{r Merge device and O2 tables, create variable NC_GT_12}
+# Left_join on 'ID' and 'date' columns
+O2_DEV.tab <- O2.tab %>%
+  left_join(device.tab, by = c("ID", "date")) %>%          #left join????
+  mutate(NC_GT_12 = ifelse(NCDEV == 1 & HighO2 == 1, 1, 0))
+```
+
+# Merge all tables to aggregate binary clinical scenarios and O2 device classifications
+
+## List of tables to join include:
+
+-   fs
+-   dm
+-   vp.tab
+-   ecmo.tab
+-   crrt.tab
+-   niv.tab
+-   hd.tab
+-   intub.tab
+-   SF200.tab
+-   O2_DEV.tab
+
+```{r Join all tables}
+bin_clin_scen_df <- dm %>% 
+  #left_join(fs, by = c("ID", "date"), suffix = c("", ".dupcol")) %>% 
+  left_join(vp.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(ecmo.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(crrt.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(niv.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(hd.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(intub.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(SF200.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  left_join(O2_DEV.tab, by = c("ID", "date"), suffix = c("", ".dupcol")) %>%
+  select(-ends_with(".dupcol")) %>%
+  mutate(death = if_else(date == death_date, 1, 0, missing = 0))
+```
+
+# IMPORTANT: Some patients (n=30) did not have a separate row on the date of their death
+
+## For these patients, need to bind an additional row where date=death_date, death=1, and stage=10
+
+```{r Create extra row for patients with missing row on date of death, and bind to last row}
+bin_clin_scen_df <- bin_clin_scen_df %>%
+  filter(end_in_death == "Yes") %>% 
+  group_by(ID) %>% 
+  filter(death_date != max(date)) %>%    # Identify pts with missing row for day of death
+  summarise(date = max(date)) %>%        # Pull out day before death date 
+  mutate(date = date + 1,                # Create new row where DATE=DATE+1, DEATH=1, and STAGE=10
+         death = 1,
+         stage = 10, .) %>% 
+   bind_rows(bin_clin_scen_df, .) %>%    # Bind to df 
+   arrange(ID)                           # Order by ID 
+
+# Check to make sure num of rows where end_in_death==Yes equals num of rows where DEATH==1
+  n_death <- sum(bin_clin_scen_df$death)
+  n_end_in_death <- filter(bin_clin_scen_df, end_in_death=="Yes") %>% distinct(ID, .keep_all = T) %>% nrow()
+  n_death==n_end_in_death # TRUE 
+
+# From code above, you can filter to get df of pts with missing row for date of death
+  # There are n=30 unique encounter IDs that need a row binded to the last date representing their death 
+pts_missing_row_for_death <- bin_clin_scen_df %>%
+  filter(end_in_death == "Yes") %>% 
+  group_by(ID) %>% 
+  filter(death_date != max(date))
+n_distinct(pts_missing_row_for_death$ID)     # N=30
+```
+
+# Save resulting dataframe as CSV and RDS
+
+```{r Export and save data }
+write_csv(bin_clin_scen_df, here("data", "binary_clin_scen_df_4.14.22.csv"))
+saveRDS(bin_clin_scen_df, here("data", "binary_clin_scen_df_4.14.22.rds"))
+```

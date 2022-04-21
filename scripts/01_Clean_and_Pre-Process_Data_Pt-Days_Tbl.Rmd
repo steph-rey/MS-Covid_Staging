@@ -1,0 +1,157 @@
+---
+title: "Clean and Pre-Process Data -> Patient-Days Table"
+author: "Steph Reynolds (Stephanie.Reynolds@ucsf.edu)"
+date: "`r format(Sys.time(), '%b %d, %Y  %H:%M %p')`"
+output:
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, tidy.opts=list(width.cutoff=80), tidy=TRUE)
+```
+
+# Background
+
+## Project 
+MINDSCAPE: Modeling of infectious network dynamics for surveillance, control and prevention enhancement
+
+## Description
+This file pre-processes the demographics and events and COVID vaccination data and returns a cleaned, expanded dataset with one row per patient-day of hospitalization. Steps include: deselecting unecessary variables, transforming to proper variable type, parsing the admit and discharge date, etc.
+
+## Source Data
+  - Demographics and Event (`demographics and event table 4.14.22.csv`)
+    + This file contains data on patient demographics (age, sex, race, ethnicity), time of admission and discharge, time of death (if applicable), and hospital length of stay (LOS). 
+  - COVID Vaccinations (`COVID vaccinations 4.14.22.csv`)
+    + This file contains data on COVID vaccination history, including, dose number, date of vaccination, and manufacturer.
+  - All Encounter Diagnoses (`all encounter diagnoses 4.14.22.csv`)
+    + This file contains data on comorbid diagnoses. Used to convert to Charlson Comborbidity Index (CCI) score.
+
+# Load required packages 
+```{r Load required packages, message = F}
+library(here)
+library(tidyverse)
+library(forcats)
+```
+
+# Import data and select necessary variables 
+```{r Import and preview data, echo=FALSE}
+dm_raw <- read_delim(here("data", "raw", "demographics and event table 4.14.22.csv"), delim = "|")
+
+colnames(dm_raw)
+
+# Identify necessary variables and assign to vector `vars`
+vars <- c("deid_enc_id", "deid_pat_id", "age", "sex", "pat_race", "ethnicity", "marital_status", "language", "smoking", "BMI", "covid_pos", "end_in_death", "death_time", "admit_time", "discharge_time", "hospital_LOS", "last_code_status")
+
+dm <- dm_raw %>% 
+  select(vars) 
+```
+
+# Recode variables to proper format (numeric, factor, or date)
+```{r Recode variables to proper format}
+# Identify variables to be converted to factor type and assign to vector `vars_fct`
+vars_fct <- c("sex", "pat_race", "ethnicity", "marital_status", "language", "smoking", "covid_pos", "end_in_death", "last_code_status")
+
+# Transform variables above to factor type
+dm <- dm %>% mutate_at(vars_fct, as.factor)
+
+# Identify variables to be converted to numeric type and assign to vector `vars_num`
+vars_num <- c("age", "BMI", "hospital_LOS")
+
+# Transform variables above to numeric type
+dm <- dm %>% mutate_at(vars_num, as.numeric)
+
+# Transform admit/discharge/death time variables to date type
+dm$discharge_time <- as.POSIXct(dm$discharge_time, format = "%Y-%m-%d %H:%M:%S")
+dm$death_time <- as.POSIXct(dm$death_time, format = "%Y-%m-%d %H:%M:%S")
+dm$admit_time <- as.POSIXct(dm$admit_time, format = "%Y-%m-%d %H:%M:%S")
+```
+
+# Collapse levels for factor variables and set reference level
+```{r Collapse levels for factor variables and set reference level, tidy = T, tidy.opts = list(width.cutoff = 60)}
+# Collapse levels for race and set ref level 
+dm$pat_race <- fct_collapse(dm$pat_race,
+                            "Unknown" = c("Unknown", "Declined", "Unknown/Declined", "NULL"),
+                            "Other" = c("Native Hawaiian", "Native Hawaiian or Other Pacific Islander", "Other", "Other Pacific Islander", "American Indian or Alaska Native")) %>% 
+  relevel(dm$pat_race, ref = "White or Caucasian")
+
+# Collapse levels for ethnicity and set ref level
+dm$ethnicity <- fct_collapse(dm$ethnicity, 
+                             "Unknown" = c("Unknown", "Declined", "Unknown/Declined", "NULL")) %>% 
+  relevel(dm$ethnicity, ref = "Not Hispanic or Latino")
+
+# Collapse levels for smoking and set ref level
+dm$smoking <- fct_collapse(dm$smoking,
+                           "Current Smoker" = c("Current Every Day Smoker", "Current Some Day Smoker", "Heavy Tobacco Smoker", "Light Tobacco Smoker", "Smoker, Current Status Unknown"),
+                           "Not Smoker" = c("Former Smoker", "Never Smoker", "Passive Smoke Exposure - Never Smoker"),
+                           "Unknown" = c("Unknown If Ever Smoked", "NULL")) %>% 
+  relevel(dm$smoking, ref = "Not Smoker")
+
+# Set ref level for sex 
+dm$sex <- relevel(dm$sex, ref = "Male")
+
+# Collapse levels for language and set ref level
+dm$language <- factor(ifelse(dm$language=="English", "English", "Not English")) %>% 
+  relevel(dm$language, ref = "English")
+
+# Collapse levels for marital_status and set ref level
+dm$marital_status <- fct_collapse(dm$marital_status,
+                           "Single" = c("Divorced", "Legally Separated", "Single", "Widowed", "RDP-Dissolved", "RDP-LG SEP", "RDP-Widow"),
+                           "Paired" = c("Married", "Significant Other", "Registered Domestic Partner"),
+                           "Unknown" = c("Unknown/Declined", "NULL")) %>% 
+  relevel(dm$smoking, ref = "Single")
+```
+
+# Create dataset where each row represent a single patient-day
+## Parse date from admit/discharge times and create new variable that spans from admission to discharge for each encounter
+```{r Create pt-day table}
+dm_clean <- dm %>%
+  filter(covid_pos=="Yes" & hospital_LOS>=1) %>%    # Filter for COVID+ pts with LOS>=1
+  rename(race = pat_race,
+         LOS = hospital_LOS) %>% 
+  mutate(admit_date = as.Date(admit_time),          # Parse date from admit/discharge/death times
+         discharge_date = as.Date(discharge_time),
+         death_date = as.Date(death_time)) %>% 
+  group_by(deid_enc_id) %>% 
+  # Create new var that spans from admit date to discharge date for each encounter 
+  mutate(day_date = list(seq(from = min(admit_date), to = max(discharge_date), by = "day"))) %>% 
+  unnest(day_date) %>% 
+  relocate(day_date, .after = 2) %>%                # Relocate `day_date` as 3rd col
+  select(-c(covid_pos, ends_with("_time")))
+
+# Summarize `dm_clean` 
+summary(dm_clean)
+```
+
+# Save `dm_clean` as CSV and RDS 
+```{r Save dm_clean, eval = F}
+write_csv(dm_clean, here("data", "dm_covid_4.14.22.csv"))
+saveRDS(dm_clean, here("data", "dm_covid_4.14.22.rds"))
+```
+
+# Import COVID vaccinations table and merge with demographics  
+```{r Import vaccinations tbl and join with dm tbl}
+# Read in covid vaccinations table 
+vac <- read_delim(here("data", "raw", "COVID vaccinations 4.14.22.csv"), delim = "|") %>%
+  filter(immune_date!="NULL" & dose_num==1) %>% 
+  select(-manufacturer)
+
+# Join dm and vac tables on `deid_pat_id`
+dm_w_vac <- dm_clean %>% 
+  left_join(vac, by = "deid_pat_id") %>% 
+  mutate(vac = as.factor(case_when(immune_date < admit_date ~ "Yes", 
+                         TRUE ~ "No"))) %>% 
+  relocate(vac, .after = "day_date") %>% 
+  select(-c(immune_date, dose_num))
+
+# Preview final dataset 
+glimpse(dm_w_vac)
+```
+
+# Save final `dm_w_vac` dataset as CSV and RDS
+```{r Save and export final dataset, eval = F}
+write_csv(dm_w_vac, here("data", "dm_covid_4.14.22.csv"))
+saveRDS(dm_w_vac, here("data", "dm_covid_4.14.22.rds"))
+```
+
