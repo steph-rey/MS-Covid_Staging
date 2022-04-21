@@ -32,20 +32,21 @@ This file summarizes demographic and staging data for COVID-19 patients, creates
 
 ```{r Load required packages, include=F}
 library(tidyverse)
+library(psych)
+library(tableone)
 ```
 
 # Read in data and preview
 
 ```{r Read in data and preview}
 df <- readRDS("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_unique_FINAL_4.14.22.rds")
-
 df
 ```
 
 # Summarize data and create Table One
 
 ```{r Summarize data and create Table One}
-psych::describe(df)
+describe(df)
 
 vars <- colnames(df)[2:17]
 
@@ -53,9 +54,401 @@ t1 <- CreateTableOne(data=df, vars=vars)
 print(t1, showAllLevels = T)
 ```
 
-# Build plots
+# Figures to summarize data 
 
 ```{r}
+# Histogram of age
 
+ggplot(df) +
+  aes(x = age) +
+  geom_histogram(bins = 30L, fill = "#0C4C8A") +
+  labs(x = "Age",
+       y = "Frequency",
+       title = "Distribution of Age") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
+
+
+# Histogram of BMI
+
+ggplot(df) +
+  aes(x = BMI) +
+  geom_histogram(bins = 30L, fill = "#0C4C8A") +
+  labs(x = "BMI",
+       y = "Frequency",
+       title = "Distribution of BMI") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
+
+
+# Histogram of LOS
+# Truncated: 0 to 80 days
+
+ggplot(df) +
+  aes(x = LOS) +
+  geom_histogram(bins = 30L, fill = "#0C4C8A") +
+  labs(
+    x = "Number of Days",
+    y = "Frequency",
+    title = "Distribution of Length of Stay (LOS)",
+    subtitle = "for patients admitted at moderate",
+    caption = "X-axis limits 0 to 80"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  ) +
+  xlim(0, 80)
+
+
+# Histogram of LOS
+# Not truncated
+
+ggplot(df) +
+  aes(x = LOS) +
+  geom_histogram(bins = 30L, fill = "#0C4C8A") +
+  labs(x = "Number of Days",
+       y = "Frequency",
+       title = "Distribution of Length of Stay (LOS)") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
+
+
+# Histogram of LOS for patients admitted at moderate
+# Truncated: 0 to 80 days
+
+df %>%
+  filter(stage_adm.cat %in% "Moderate") %>%
+  ggplot() +
+  aes(x = LOS) +
+  geom_histogram(bins = 30L, fill = "#0C4C8A") +
+  labs(
+    x = "Number of Days",
+    y = "Frequency",
+    title = "Distribution of Length of Stay (LOS)",
+    subtitle = "for patients admitted at moderate",
+    caption = "X-axis limits 0 to 80"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  ) +
+  xlim(0, 80)
+
+
+# Histogram of LOS for patients admitted at severe
+# Truncated: 0 to 80 days
+
+df %>%
+  filter(stage_adm.cat %in% "Severe") %>%
+  ggplot() +
+  aes(x = LOS) +
+  geom_histogram(bins = 30L, fill = "#0C4C8A") +
+  labs(
+    x = "Number of Days",
+    y = "Frequency",
+    title = "Distribution of Length of Stay (LOS)",
+    subtitle = "for patients admitted at severe",
+    caption = "X-axis limits 0 to 80"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  ) +
+  xlim(0, 80)
+
+
+# Bar graph of race
+
+df %>%
+  ggplot() +
+  aes(x = race) +
+  geom_bar(fill = "#0C4C8A") +
+  labs(y = "Frequency", title = "Distribution of Race") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  )
+
+
+# Bar graph of ethnicity
+
+df %>%
+  ggplot() +
+  aes(x = ethnicity) +
+  geom_bar(fill = "#0C4C8A") +
+  labs(y = "Frequency", title = "Distribution of Ethnicity") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  )
+
+
+# Bar graph of marital status
+
+df %>%
+  ggplot() +
+  aes(x = marital_status) +
+  geom_bar(fill = "#0C4C8A") +
+  labs(x = "Marital Status",
+       y = "Frequency",
+       title = "Distribution of Marital Status") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  )
+
+
+# Bar graph of language
+
+df %>%
+  ggplot() +
+  aes(x = language) +
+  geom_bar(fill = "#0C4C8A") +
+  labs(x = "Language",
+       y = "Frequency",
+       title = "Distribution of Language") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  )
+
+
+# Bar graph of smoking status
+
+df %>%
+  ggplot() +
+  aes(x = smoking) +
+  geom_bar(fill = "#0C4C8A") +
+  labs(x = "Smoking Status",
+       y = "Frequency",
+       title = "Distribution of Smoking Status") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  )
+
+
+# Bar graph of last code status
+
+df %>%
+  ggplot() +
+  aes(x = last_code_status) +
+  geom_bar(fill = "#0C4C8A") +
+  labs(x = "Last Code Status",
+       y = "Frequency",
+       title = "Distribution of Last Code Status") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 hjust = 0.5)
+  )
+
+
+# Histogram of max stage
+
+ggplot(df) +
+  aes(x = max_stage) +
+  geom_bar(fill = "#112446") +
+  labs(x = "Max Stage",
+       y = "Frequency",
+       title = "Distribution of Max Stage") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 face = "italic",
+                                 hjust = 0.5)
+  )
+
+
+# Histogram of admission stage
+
+ggplot(df) +
+  aes(x = stage_adm) +
+  geom_bar(fill = "#112446") +
+  labs(x = "Admission Stage",
+       y = "Frequency",
+       title = "Distribution of Severity at Admission") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 face = "italic",
+                                 hjust = 0.5)
+  )
+
+
+# Stacked bar chart - proportion of max stage by admission severity
+
+ggplot(df) +
+  aes(x = stage_adm, fill = max_stage) +
+  geom_bar(position = "fill") +
+  scale_fill_hue(direction = 1) +
+  labs(x = "Admission Stage",
+       y = "Proportion",
+       title = "Proportion of Max Stage by Admission Severity") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 face = "italic",
+                                 hjust = 0.5)
+  )
+
+
+# Stacked bar chart - frequency of max stage by admission severity
+
+ggplot(df) +
+  aes(x = stage_adm, fill = max_stage) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  labs(x = "Admission Stage",
+       y = "Frequency",
+       title = "Distribution of Max Stage by Admission Severity") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.subtitle = element_text(size = 16L,
+                                 face = "italic",
+                                 hjust = 0.5)
+  )
+
+
+# Side-by-side boxplot of LOS by admission severity
+# Truncated: LOS 0 to 80 days
+
+df %>%
+  filter(LOS >= 1L & LOS <= 80L) %>%
+  ggplot() +
+  aes(x = stage_adm.cat, y = LOS) +
+  geom_boxplot(shape = "circle", fill = "#FF8C00") +
+  labs(
+    x = "Admission Severity",
+    y = "Length of Stay (days)",
+    title = "Length of Stay by Admission Severity",
+    caption = "X-axis limits 0 to 80"
+  ) +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
+
+
+# Side-by-side boxplot of LOS by admission severity
+# Not truncated
+
+ggplot(df) +
+  aes(x = stage_adm.cat, y = LOS) +
+  geom_boxplot(shape = "circle", fill = "#FF8C00") +
+  labs(x = "Admission Severity",
+       y = "Length of Stay (days)",
+       title = "Length of Stay by Admission Severity") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
+
+
+# Stacked bar chart - frequency of max stage by admission severity
+# Stages categorized into moderate, severe, and dead
+
+ggplot(df) +
+  aes(x = stage_adm.cat, fill = max_stage.cat) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Admission Severity",
+    y = "Frequency",
+    title = "Distribution of Max Stage by Admission Severity",
+    caption = "Stages categorized into moderate (4-5),
+    severe (6-9),
+    and dead (10).",
+    fill = "Max Stage"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.caption = element_text(size = 13L,
+                                face = "italic",
+                                hjust = 0)
+  )
+
+
+# Stacked bar chart - proportion of max stage by admission severity
+# Stages categorized into moderate, severe, and dead
+
+ggplot(df) +
+  aes(x = stage_adm.cat, fill = max_stage.cat) +
+  geom_bar(position = "fill") +
+  scale_fill_hue(direction = 1) +
+  labs(
+    x = "Admission Severity",
+    y = "Proportion",
+    title = "Proportion of Max Stage by Admission Severity",
+    caption = "Stages categorized into moderate (4-5),
+    severe (6-9),
+    and dead (10).",
+    fill = "Max Stage"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20L,
+                              hjust = 0.5),
+    plot.caption = element_text(size = 13L,
+                                face = "italic",
+                                hjust = 0)
+  )
+
+
+# Side-by-side boxplot of death status by age
+
+ggplot(df) +
+  aes(x = death, y = age) +
+  geom_boxplot(shape = "circle", fill = "#4682B4") +
+  labs(x = "Death", y = "Age", title = "Death Status by Age") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
+
+
+# Stacked bar chart of death status by admission severity category
+
+ggplot(df) +
+  aes(x = death, fill = stage_adm.cat) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  labs(x = "Death",
+       y = "Frequency",
+       title = "Death Status by Admission Severity",
+       fill = "Admission Severity") +
+  theme_minimal() +
+  theme(plot.title = element_text(size = 20L, hjust = 0.5))
 ```
 
