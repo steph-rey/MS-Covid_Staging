@@ -46,25 +46,15 @@ library(vip) # calculate and visualize feature importance
 
 # Import and preview data 
 ```{r Import and preview data}
-df <- read_csv("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/dm_stg_unique_pt_11.08.21.csv")
+df <- readRDS("/Users/sreynolds2/Documents/GitHub/MS-Covid_Staging/data/covid_dm_stages_unique_FINAL_4.14.22.rds")
 
 head(df, n=10)
 ```
 
-# Convert variables to factor type and create dataset with only relevant parameters
-```{r Prepare dataset for linear regression}
-# Assign list of variables to be converted to factor type 
-vars_fct <- c("sex", "race", "ethnicity", "smoking", "death", "max_stage", "stage_adm", "stage_disc")
-
-# Convert these variables to factor type
-df <- df %>% 
-  mutate_at(vars_fct, factor)
-
-# Categorize admission stage into 'moderate' and 'severe'
 # Create dataset with only relevant parameters and assign to `regdf`
+```{r Prepare dataset for linear regression}
 regdf <- df %>% 
-  mutate(stage_adm_cat = ifelse(stage_adm %in% 4:5, "Moderate", "Severe")) %>% 
-  select(ID, age, race, LOS, stage_adm, stage_adm_cat)
+  select(ID, age, sex, race, ethnicity, LOS, last_code_status, stage_adm, stage_adm.cat)
 ```
 
 # Create dataset that excludes LOS outliers
@@ -78,12 +68,31 @@ outliers <- boxplot(regdf$LOS)$out
 # Exclude outliers from dataset
 regdf_no_outliers <- regdf[-which(regdf$LOS %in% outliers), ]
 ```
-
-# Fit linear regression model m1: LOS ~ stage_adm_cat + poly(age, 2)
-Where outcome (LOS) is not transformed
+# Fit linear regression model m.full
+LOS ~ stage_adm.cat + poly(age, 2) + race + age + sex + ethnicity + last_code_status
+where LOS is not transformed
 ```{r Linear regression model m1}
 # Fit model
-m1 <- lm(LOS ~ stage_adm_cat + poly(age, 2) + race, data = regdf)
+m.full <- lm(LOS ~ stage_adm.cat + poly(age, 2) + race + age + sex + ethnicity + last_code_status, data = regdf)
+
+# Summarize regression output
+summary(m.full)
+
+# Check assumptions for `m1`
+check_model(m.full)
+
+# Check performance for `m1`
+model_performance(m.full)
+```
+
+Age, race, and ethnicity appear to not be significant. Remove from model and re-run.
+
+# Fit linear regression model m1
+LOS ~ stage_adm.cat + poly(age, 2) + sex + race + last_code_status
+where LOS is not transformed
+```{r Linear regression model m1}
+# Fit model
+m1 <- lm(LOS ~ stage_adm.cat + poly(age, 2) + sex + race + last_code_status, data = regdf)
 
 # Summarize regression output
 summary(m1)
@@ -95,11 +104,12 @@ check_model(m1)
 model_performance(m1)
 ```
 
-# Fit linear regression model m2: log(LOS) ~ stage_adm_cat + poly(age, 2)
-Where outcome (LOS) is transformed on log scale 
+# Fit linear regression model m2
+LOS ~ stage_adm.cat + poly(age, 2) + sex + race + last_code_status
+where LOS is transformed on log scale 
 ```{r Linear regression model m2}
 # Fit model
-m2 <- lm(log(LOS) ~ stage_adm_cat + poly(age, 2) + race, data = regdf)
+m2 <- lm(log(LOS) ~ stage_adm.cat + poly(age, 2) + sex + race + last_code_status, data = regdf)
 
 # Summarize regression output
 summary(m2)
@@ -111,11 +121,14 @@ check_model(m2)
 model_performance(m2)
 ```
 
-# Fit linear regression model m3: sqrt(LOS) ~ stage_adm_cat + poly(age, 2)
-Where outcome (LOS) is transformed on square root scale
-```{r Linear regression model m3}
+Sex not found to be significant. Remove from model and re-run. 
+
+# Fit linear regression model m3
+LOS ~ stage_adm.cat + poly(age, 2) + race + last_code_status
+where LOS is transformed on log scale 
+```{r Linear regression model m2}
 # Fit model
-m3 <- lm(sqrt(LOS) ~ stage_adm_cat + poly(age, 2) + race, data = regdf)
+m3 <- lm(log(LOS) ~ stage_adm.cat + poly(age, 2) + race + last_code_status, data = regdf)
 
 # Summarize regression output
 summary(m3)
@@ -127,32 +140,26 @@ check_model(m3)
 model_performance(m3)
 ```
 
-# Fit linear regression model m4: (LOS^(1/3)) ~ stage_adm_cat + poly(age, 2)
-Where outcome (LOS) is transformed on cube root scale 
-```{r Linear regression model m4}
-# Fit model
-m4 <- lm(LOS^(1/3) ~ stage_adm_cat + poly(age, 2) + race, data = regdf)
-
-# Summarize regression output
-summary(m4)
-
-# Check assumptions for `m2`
-# check_model(m4) -- GENERATES ERROR MESSAGE 
-
-# Check performance for `m2`
-model_performance(m4)
-```
-
 # Visualize most important features for `m1`
 ```{r Visualize most important features for `m1`}
+# Visualize feature importance
 m1 %>% vip(num_features = 15,
            geom = "point",
            aes = list(size = 3, color = '18bc9c')) + 
   theme_minimal(base_size = 14) +
-  labs(title = "Logistic Regression: Feature Importance")
-  # Feature with highest importance are: stage_adm_cat == SEVERE
+  labs(title = "Linear Regression: Feature Importance")
+  # Feature with highest importance is: stage_adm.cat
 
-regdf %>% ggplot(aes(LOS, stage_adm_cat)) +
+# Side-by-side boxplot of LOS using admission severity as key predictor 
+regdf %>% ggplot(aes(LOS, stage_adm.cat)) +
+  geom_boxplot() + 
+  geom_jitter(alpha = 0.3) + 
+  theme_minimal(base_size = 15) +
+  labs(title = "Comparison of Predicted LOS\nusing Admission Stage as Key Predictor")
+
+# Side-by-side boxplot of LOS using admission severity as key predictor 
+# Using dataset WITHOUT outliers 
+regdf_no_outliers %>% ggplot(aes(LOS, stage_adm.cat)) +
   geom_boxplot() + 
   geom_jitter(alpha = 0.3) + 
   theme_minimal(base_size = 15) +
@@ -165,8 +172,8 @@ m2 %>% vip(num_features = 15,
            geom = "point",
            aes = list(size = 3, color = '18bc9c')) + 
   theme_minimal(base_size = 14) +
-  labs(title = "Logistic Regression: Feature Importance")
-  # Feature with highest importance are: stage_adm_cat == SEVERE
+  labs(title = "Linear Regression: Feature Importance")
+  # Feature with highest importance is: stage_adm.cat 
 ```
 
 # Visualize most important features for m3
@@ -175,19 +182,6 @@ m3 %>% vip(num_features = 15,
            geom = "point",
            aes = list(size = 3, color = '18bc9c')) + 
   theme_minimal(base_size = 14) +
-  labs(title = "Logistic Regression: Feature Importance")
-  # Feature with highest importance are: stage_adm_cat == SEVERE
+  labs(title = "Linear Regression: Feature Importance")
+  # Feature with highest importance is: stage_adm.cat
 ```
-
-# Visualize most important features for m4
-```{r Visualize most important features for m4}
-m4 %>% vip(num_features = 15,
-           geom = "point",
-           aes = list(size = 3, color = '18bc9c')) + 
-  theme_minimal(base_size = 14) +
-  labs(title = "Logistic Regression: Feature Importance")
-  # Feature with highest importance are: stage_adm_cat == SEVERE
-```
-
-# End of Document
-
