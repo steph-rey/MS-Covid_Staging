@@ -40,6 +40,12 @@ library(comorbidity)
 # Read in data
 dx <- read_delim(here("data", "raw", "all encounter diagnoses 4.14.22.csv"), delim = "|")
 
+# Remove last 2 rows 
+dx <- dx[-c(nrow(dx)-1, nrow(dx)), ]
+
+# View data 
+head(dx)
+
 # Filter where `present_on_admit` == "Yes" or "NULL" and select only ID and ICD code columns
 comorbid <- dx %>% 
   filter(present_on_admit %in% c("Yes", "NULL")) %>% 
