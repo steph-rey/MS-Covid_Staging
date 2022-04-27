@@ -43,7 +43,11 @@ library(tidyverse)
 
 ```{r Import all data, echo=F, message=F}
 med <- read_delim(here("data", "raw", "med admin table 4.14.22.csv"))
+med <- med[-c(nrow(med)-1, nrow(med)), ]
+
 fs <- read_delim(here("data", "raw", "flowsheet data table 4.14.22.csv"))
+fs <- fs[-c(nrow(fs)-1, nrow(fs)), ]
+
 dm_covid <- readRDS(here("data", "dm_covid_4.14.22.rds"))
 ```
 

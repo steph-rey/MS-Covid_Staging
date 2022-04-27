@@ -37,15 +37,20 @@ library(forcats)
 
 # Import data and select necessary variables 
 ```{r Import and preview data, echo=FALSE}
-dm_raw <- read_delim(here("data", "raw", "demographics and event table 4.14.22.csv"), delim = "|")
+# Read in raw data file 
+dm_raw <- read.csv(here("data", "raw", "demographics and event table 4.14.22.csv"), sep = "|", quote = "")
 
+# Remove last 2 rows 
+dm_raw <- dm_raw[-c(54405:54406), ]
+  
+# View column names
 colnames(dm_raw)
 
 # Identify necessary variables and assign to vector `vars`
-vars <- c("deid_enc_id", "deid_pat_id", "age", "sex", "pat_race", "ethnicity", "marital_status", "language", "smoking", "BMI", "covid_pos", "end_in_death", "death_time", "admit_time", "discharge_time", "hospital_LOS", "last_code_status")
+vars_all <- c("deid_enc_id", "deid_pat_id", "age", "sex", "pat_race", "ethnicity", "marital_status", "language", "smoking", "BMI", "covid_pos", "end_in_death", "death_time", "admit_time", "discharge_time", "hospital_LOS", "last_code_status")
 
 dm <- dm_raw %>% 
-  select(vars) 
+  select(vars_all)
 ```
 
 # Recode variables to proper format (numeric, factor, or date)
@@ -133,7 +138,7 @@ saveRDS(dm_clean, here("data", "dm_covid_4.14.22.rds"))
 # Import COVID vaccinations table and merge with demographics  
 ```{r Import vaccinations tbl and join with dm tbl}
 # Read in covid vaccinations table 
-vac <- read_delim(here("data", "raw", "COVID vaccinations 4.14.22.csv"), delim = "|") %>%
+vac <- read.csv(here("data", "raw", "COVID vaccinations 4.14.22.csv"), sep = "|") %>%
   filter(immune_date!="NULL" & dose_num==1) %>% 
   select(-manufacturer)
 
